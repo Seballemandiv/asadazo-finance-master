@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Check, X } from "lucide-react";
+import { Check, X, Trash2 } from "lucide-react";
 
 const COST_TYPES = [
   "Operating Expense",
@@ -23,7 +23,7 @@ function isPnlExpense(costType) {
   return ["Operating Expense", "Shipping Cost", "Event Cost"].includes(costType);
 }
 
-export default function BankRowEditor({ record, onSave, onCancel }) {
+export default function BankRowEditor({ record, onSave, onCancel, onRemove }) {
   const [form, setForm] = useState({
     cost_type: record.cost_type || "",
     channel: record.channel || "",
@@ -79,8 +79,11 @@ export default function BankRowEditor({ record, onSave, onCancel }) {
       </td>
       <td className="px-3 py-2">
         <div className="flex gap-1">
-          <Button size="icon" className="h-7 w-7" onClick={handleSave}><Check className="w-3 h-3" /></Button>
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onCancel}><X className="w-3 h-3" /></Button>
+          <Button size="icon" className="h-7 w-7" onClick={handleSave} title="Save"><Check className="w-3 h-3" /></Button>
+          {onRemove && (
+            <Button size="icon" variant="destructive" className="h-7 w-7" onClick={() => onRemove(record.id)} title="Remove from finance"><Trash2 className="w-3 h-3" /></Button>
+          )}
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onCancel} title="Cancel"><X className="w-3 h-3" /></Button>
         </div>
       </td>
     </tr>
