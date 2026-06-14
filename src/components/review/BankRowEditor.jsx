@@ -5,6 +5,7 @@ import { Check, X, Trash2 } from "lucide-react";
 
 const COST_TYPES = [
   "Operating Expense",
+  "Expense Refund",
   "Shipping Cost",
   "Event Cost",
   "Meat Purchase",
@@ -14,6 +15,7 @@ const COST_TYPES = [
   "Loan In / Payback",
   "Loan Out",
   "Transfer / Reconciliation",
+  "Manual Review",
   "Ignore",
 ];
 const CHANNELS = ["Online Shop", "Event", "Wholesale", "Other"];
@@ -33,21 +35,19 @@ export default function BankRowEditor({ record, onSave, onCancel, onRemove }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSave = () => {
-    const amountOut = record.amount_out || 0;
-    const shippingCost = form.cost_type === "Shipping Cost" ? amountOut : 0;
-    const operatingExpenses = form.cost_type === "Operating Expense" ? amountOut : 0;
-    const eventCost = form.cost_type === "Event Cost" ? amountOut : 0;
-    const meatPurchase = form.cost_type === "Meat Purchase" ? amountOut : 0;
-    const refundAmount = form.cost_type === "Refund" ? amountOut : 0;
+    const amountOut = Number(record.amount_out || 0);
+    const amountIn = Number(record.amount_in || 0);
+    const expenseRefund = form.cost_type === "Expense Refund" ? amountIn : 0;
 
     onSave({
       ...form,
-      counted_expense: isPnlExpense(form.cost_type) ? amountOut : 0,
-      shipping_cost: shippingCost,
-      operating_expenses: operatingExpenses,
-      event_cost: eventCost,
-      meat_purchase: meatPurchase,
-      refund_amount: refundAmount,
+      counted_expense: isPnlExpense(form.cost_type) ? amountOut : (form.cost_type === "Expense Refund" ? -expenseRefund : 0),
+      shipping_cost: form.cost_type === "Shipping Cost" ? amountOut : 0,
+      operating_expenses: form.cost_type === "Operating Expense" ? amountOut : (form.cost_type === "Expense Refund" ? -expenseRefund : 0),
+      event_cost: form.cost_type === "Event Cost" ? amountOut : 0,
+      meat_purchase: form.cost_type === "Meat Purchase" ? amountOut : 0,
+      refund_amount: form.cost_type === "Refund" ? amountOut : 0,
+      expense_refund_amount: expenseRefund,
     });
   };
 
@@ -57,8 +57,8 @@ export default function BankRowEditor({ record, onSave, onCancel, onRemove }) {
       <td className="px-3 py-2 text-xs">{record.type}</td>
       <td className="px-3 py-2 text-xs max-w-[160px] truncate">{record.reference}</td>
       <td className="px-3 py-2 text-xs max-w-[140px] truncate">{record.payment_ref}</td>
-      <td className="px-3 py-2 text-xs text-destructive">{record.amount_out > 0 ? `€${record.amount_out.toFixed(2)}` : ""}</td>
-      <td className="px-3 py-2 text-xs text-green-700">{record.amount_in > 0 ? `€${record.amount_in.toFixed(2)}` : ""}</td>
+      <td className="px-3 py-2 text-xs text-destructive">{amountOut > 0 ? `€${amountOut.toFixed(2)}` : ""}</td>
+      <td className="px-3 py-2 text-xs text-green-700">{amountIn > 0 ? `€${amountIn.toFixed(2)}` : ""}</td>
       <td className="px-3 py-2">
         <Select value={form.cost_type} onValueChange={v => set("cost_type", v)}>
           <SelectTrigger className="h-7 text-xs w-52"><SelectValue placeholder="Cost / cash type" /></SelectTrigger>
@@ -80,9 +80,7 @@ export default function BankRowEditor({ record, onSave, onCancel, onRemove }) {
       <td className="px-3 py-2">
         <div className="flex gap-1">
           <Button size="icon" className="h-7 w-7" onClick={handleSave} title="Save"><Check className="w-3 h-3" /></Button>
-          {onRemove && (
-            <Button size="icon" variant="destructive" className="h-7 w-7" onClick={() => onRemove(record.id)} title="Remove from finance"><Trash2 className="w-3 h-3" /></Button>
-          )}
+          {onRemove && <Button size="icon" variant="destructive" className="h-7 w-7" onClick={() => onRemove(record.id)} title="Remove from finance"><Trash2 className="w-3 h-3" /></Button>}
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onCancel} title="Cancel"><X className="w-3 h-3" /></Button>
         </div>
       </td>
