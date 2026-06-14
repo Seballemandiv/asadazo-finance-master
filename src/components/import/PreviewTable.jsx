@@ -69,11 +69,33 @@ export default function PreviewTable({ headers, rows, mapping = {}, importType, 
 
   const showMonthCol = mappedDateCols.size > 0;
 
+  // Check if money columns are parsing correctly (sample first 20 rows)
+  const moneyWarnings = [];
+  for (const col of mappedNumericCols) {
+    const sample = preview.map(r => r[col]).filter(v => v !== "" && v !== undefined && v !== null);
+    for (const raw of sample) {
+      const rawStr = String(raw).trim().replace(/[€$£¥\u00a0\s]/g, "");
+      if (rawStr.includes(",")) {
+        const parsed = parseNumber(raw);
+        const euStr = rawStr.replace(/\./g, "").replace(",", ".");
+        const euVal = parseFloat(euStr);
+        if (!isNaN(euVal) && parsed !== null && Math.abs(parsed) >= 100 * Math.abs(euVal) && Math.abs(euVal) > 0) {
+          moneyWarnings.push(`"${raw}" → ${parsed} (expected ${euVal})`);
+        }
+      }
+    }
+  }
+  const moneyOk = moneyWarnings.length === 0;
+
   return (
     <div>
-      <p className="text-xs text-muted-foreground mb-2">
-        Preview — showing {preview.length} of {rows.length} rows
-        {showMonthCol && <span className="ml-2 text-green-700">● dates parsed</span>}
+      <p className="text-xs text-muted-foreground mb-2 flex flex-wrap gap-3 items-center">
+        <span>Preview — {preview.length} of {rows.length} rows</span>
+        {showMonthCol && <span className="text-green-700 font-medium">✓ dates parsed</span>}
+        {mappedNumericCols.size > 0 && moneyOk && <span className="text-green-700 font-medium">✓ money parsed</span>}
+        {mappedNumericCols.size > 0 && !moneyOk && (
+          <span className="text-red-600 font-medium" title={moneyWarnings.join("; ")}>⚠ money parsing error — {moneyWarnings[0]}</span>
+        )}
       </p>
       <Card>
         <CardContent className="overflow-x-auto p-0">

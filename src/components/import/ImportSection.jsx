@@ -211,6 +211,18 @@ export default function ImportSection({ importType, onImportDone }) {
               onChange={setMapping}
             />
 
+            {/* Non-blocking warnings (e.g. missing counterparty) */}
+            {validation?.warnings?.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800 space-y-1">
+                {validation.warnings.map((w, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className="flex-shrink-0">⚠</span>
+                    <span>{w.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Validation summary */}
             {validation && (
               <div className={`rounded-lg border px-4 py-3 text-xs ${
@@ -225,6 +237,8 @@ export default function ImportSection({ importType, onImportDone }) {
                     <span className="text-red-700">Rows with errors: <strong>{validation.summary.rowsWithErrors}</strong></span>
                   )}
                   <span>Will be saved: <strong>{validation.valid ? validation.summary.total : 0}</strong></span>
+                  {validation.moneyOk === true && <span className="text-green-700">✓ money parsed</span>}
+                  {validation.moneyOk === false && <span className="text-red-700">⚠ money parsing error</span>}
                 </div>
                 {!validation.valid && (
                   <p className="mt-1 text-red-700">

@@ -15,16 +15,21 @@ export async function parseFile(file) {
 }
 
 function parseCSV(text) {
-  // Detect delimiter (tab or comma)
+  // Detect delimiter: tab > semicolon > comma
+  // European CSVs often use semicolons so that commas in numbers (e.g. "12,80") are preserved as-is
   const firstLine = text.split("\n")[0] || "";
-  const delimiter = firstLine.includes("\t") ? "\t" : ",";
+  let delimiter = ",";
+  if (firstLine.includes("\t")) delimiter = "\t";
+  else if (firstLine.includes(";")) delimiter = ";";
 
-  const wb = XLSX.read(text, { type: "string", raw: false, FS: delimiter });
+  const wb = XLSX.read(text, { type: "string", raw: true, FS: delimiter });
   return sheetToData(wb.Sheets[wb.SheetNames[0]]);
 }
 
 function parseExcel(buffer) {
-  const wb = XLSX.read(buffer, { type: "array", raw: false, cellDates: true });
+  // raw: true keeps cell values as strings, preserving European number formats like "12,80"
+  // cellDates kept for date detection
+  const wb = XLSX.read(buffer, { type: "array", raw: true, cellDates: true });
   return sheetToData(wb.Sheets[wb.SheetNames[0]]);
 }
 

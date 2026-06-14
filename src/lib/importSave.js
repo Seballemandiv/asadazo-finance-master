@@ -87,24 +87,44 @@ export function processRow(row, mapping, importType, fallbackMonth) {
     payload.mapping_status = "To review";
   }
 
-  // For bank: map counterparty → reference if present
-  if (!isSales && mapping.counterparty) {
-    const cpSource = mapping.counterparty;
-    const cpVal = row[cpSource];
-    if (cpVal) payload.reference = String(cpVal).trim();
+  // For bank: build reference from counterparty → fallback to description → fallback to "Unknown"
+  if (!isSales) {
+    const cpVal = mapping.counterparty ? String(row[mapping.counterparty] ?? "").trim() : "";
+    const refVal = mapping.description ? String(row[mapping.description] ?? "").trim() : "";
+
+    // reference = counterparty name OR description/referentie OR "Unknown counterparty"
+    payload.reference = cpVal || refVal || "Unknown counterparty";
+
+    // payment_ref = description/referentie
+    if (refVal) payload.payment_ref = refVal;
+
+    // If no counterparty mapped or empty, flag for review
+    if (!cpVal) {
+      payload.review_status = "To review";
+    }
   }
 
-  // For bank: map description → payment_ref if present
-  if (!isSales && mapping.description) {
-    const dSource = mapping.description;
-    const dVal = row[dSource];
-    if (dVal) payload.payment_ref = String(dVal).trim();
+  // For bank: amount_out column → always store as negative amount_out (absolute value stored, sign is implicit)
+  if (!isSales && mapping.amount_out) {
+    const n = parseNumber(row[mapping.amount_out]);
+    if (n !== null) {
+      payload.amount_out = Math.abs(n); // debit: store as positive amount_out
+      if (!payload.amount_in) payload.amount_in = 0;
+    }
   }
 
-  // For bank: map amount (single col) → amount_in or amount_out based on sign
+  // For bank: amount_in column → always positive
+  if (!isSales && mapping.amount_in) {
+    const n = parseNumber(row[mapping.amount_in]);
+    if (n !== null) {
+      payload.amount_in = Math.abs(n);
+      if (!payload.amount_out) payload.amount_out = 0;
+    }
+  }
+
+  // For bank: single amount column → split by sign
   if (!isSales && mapping.amount) {
-    const aSource = mapping.amount;
-    const n = parseNumber(row[aSource]);
+    const n = parseNumber(row[mapping.amount]);
     if (n !== null && !payload.amount_in && !payload.amount_out) {
       if (n >= 0) {
         payload.amount_in = n;

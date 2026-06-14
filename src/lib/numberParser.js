@@ -1,51 +1,85 @@
 /**
  * Parse European and standard numeric/currency strings to JS numbers.
  *
- * Correct behaviour:
- *   "300,00"    → 300.00   (comma = decimal separator)
- *   "1.234,56"  → 1234.56  (dot = thousands, comma = decimal)
- *   "€1.234,56" → 1234.56
- *   "-25,00"    → -25.00
- *   "25.00"     → 25.00    (dot = decimal)
- *   "30000.00"  → 30000.00 (only if raw value was truly 30000.00)
- *   30000       → 30000    (JS number passthrough — no re-parse)
+ * Rules (in priority order):
+ *   1. Already a JS number → return as-is (no re-parse)
+ *   2. Strip currency symbols / whitespace
+ *   3. European thousands + comma decimal:  "1.234,56" → 1234.56
+ *   4. Comma only (no dot):                 "12,80"   → 12.80
+ *   5. Both dot and comma present:
+ *      - last separator is comma → comma is decimal: "1.234,56"
+ *      - last separator is dot  → dot is decimal:    "1,234.56"
+ *   6. Plain dot decimal or integer
+ *
+ * NOTE: Excel/CSV with comma delimiter may produce raw string "12,80".
+ *       This parser ALWAYS treats a lone comma as decimal separator.
  */
 export function parseNumber(value) {
   if (value === null || value === undefined || value === "") return null;
 
-  // If already a JS number (e.g. from xlsx cell), return as-is — do NOT re-parse
+  // Already a JS number — return as-is
   if (typeof value === "number") return isNaN(value) ? null : value;
 
   let s = String(value).trim();
 
-  // Remove currency symbols and non-breaking spaces
+  // Strip currency symbols, non-breaking spaces, ordinary spaces
   s = s.replace(/[€$£¥\u00a0\s]/g, "");
   if (s === "" || s === "-") return null;
 
-  // Determine format:
-  // European: has both thousands-dot AND comma-decimal  e.g. "1.234,56" or "1.234.567,89"
-  if (/^\-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) {
-    // European thousands with optional comma decimal
-    s = s.replace(/\./g, "").replace(",", ".");
-  } else if (/,/.test(s) && !/\./.test(s)) {
-    // Only a comma, no dot → comma is decimal separator: "300,00" → "300.00"
-    s = s.replace(",", ".");
-  } else if (/,/.test(s) && /\./.test(s)) {
-    // Has both: determine which is decimal by position of last separator
-    const lastDot = s.lastIndexOf(".");
+  const hasDot   = s.includes(".");
+  const hasComma = s.includes(",");
+
+  if (hasDot && hasComma) {
+    const lastDot   = s.lastIndexOf(".");
     const lastComma = s.lastIndexOf(",");
     if (lastComma > lastDot) {
-      // comma is decimal: "1.234,56"
+      // "1.234,56" → comma is decimal
       s = s.replace(/\./g, "").replace(",", ".");
     } else {
-      // dot is decimal, comma is thousands: "1,234.56"
+      // "1,234.56" → dot is decimal
       s = s.replace(/,/g, "");
     }
+  } else if (hasComma && !hasDot) {
+    // "12,80" or "300,00" → comma is decimal separator
+    s = s.replace(",", ".");
   }
-  // else: plain dot decimal or integer — no change needed
+  // else: plain "25.00" or "300" — no change
 
   const n = parseFloat(s);
   return isNaN(n) ? null : n;
+}
+
+// Alias used in validation / import configs
+export const parseEuropeanMoney = parseNumber;
+
+/**
+ * Check a list of raw values for suspicious 100x parsing errors.
+ * Returns { ok: boolean, examples: string[] }
+ * A value is suspicious when it has a comma, gets parsed, and the result
+ * looks ≥ 100x larger than what the European interpretation would give.
+ */
+export function checkMoneyParsing(rawValues) {
+  const suspicious = [];
+  for (const raw of rawValues) {
+    if (typeof raw !== "string") continue;
+    const s = raw.trim().replace(/[€$£¥\u00a0\s]/g, "");
+    // Only check strings that contain a comma and digits
+    if (!s.includes(",") || !/\d/.test(s)) continue;
+
+    const parsed = parseNumber(raw);
+    if (parsed === null) continue;
+
+    // European interpretation: treat comma as decimal
+    const euStr = s.replace(/\./g, "").replace(",", ".");
+    const euVal = parseFloat(euStr);
+    if (isNaN(euVal)) continue;
+
+    // If result is 100x+ larger than European interpretation, flag it
+    if (Math.abs(parsed) >= 100 * Math.abs(euVal) && Math.abs(euVal) > 0) {
+      suspicious.push({ raw, parsed, expected: euVal });
+    }
+  }
+  return { ok: suspicious.length === 0, examples: suspicious };
 }
 
 /**

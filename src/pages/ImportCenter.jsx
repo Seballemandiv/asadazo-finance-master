@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, CheckCircle2, Trash2 } from "lucide-react";
 import ImportSection from "@/components/import/ImportSection";
 import ImportHistoryTable from "@/components/import/ImportHistoryTable";
+import PdfUploadSection from "@/components/import/PdfUploadSection";
 import { base44 } from "@/api/base44Client";
 
 const IMPORT_TYPES = [
@@ -171,14 +172,24 @@ export default function ImportCenter() {
 
         {IMPORT_TYPES.map(type => (
           <TabsContent key={type} value={type} className="mt-4 space-y-4">
-            <ImportSection
-              importType={type}
-              onImportDone={refresh}
-            />
-            <ImportHistoryTable
-              refreshKey={historyKey}
-              importType={type}
-            />
+            {["supplier_documents", "logistics_documents"].includes(type) ? (
+              <PdfUploadSection
+                importType={type}
+                refreshKey={historyKey}
+                onImportDone={refresh}
+              />
+            ) : (
+              <>
+                <ImportSection
+                  importType={type}
+                  onImportDone={refresh}
+                />
+                <ImportHistoryTable
+                  refreshKey={historyKey}
+                  importType={type}
+                />
+              </>
+            )}
           </TabsContent>
         ))}
       </Tabs>

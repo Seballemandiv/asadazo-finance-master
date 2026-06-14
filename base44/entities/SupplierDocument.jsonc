@@ -1,0 +1,110 @@
+{
+  "name": "SupplierDocument",
+  "type": "object",
+  "properties": {
+    "import_type": {
+      "type": "string",
+      "enum": [
+        "supplier_documents",
+        "logistics_documents"
+      ],
+      "description": "Which tab this document belongs to"
+    },
+    "filename": {
+      "type": "string"
+    },
+    "file_url": {
+      "type": "string",
+      "description": "Uploaded file URL"
+    },
+    "import_batch_id": {
+      "type": "string"
+    },
+    "month": {
+      "type": "string"
+    },
+    "document_type": {
+      "type": "string",
+      "enum": [
+        "Proforma",
+        "Invoice",
+        "Credit note",
+        "Receipt",
+        "Packing list",
+        "Transport invoice",
+        "DHL invoice",
+        "Delivery receipt",
+        "Vehicle rental invoice",
+        "Other"
+      ]
+    },
+    "supplier_name": {
+      "type": "string"
+    },
+    "document_number": {
+      "type": "string"
+    },
+    "document_date": {
+      "type": "string"
+    },
+    "due_date": {
+      "type": "string"
+    },
+    "currency": {
+      "type": "string",
+      "default": "EUR"
+    },
+    "net_amount": {
+      "type": "number"
+    },
+    "vat_amount": {
+      "type": "number"
+    },
+    "gross_amount": {
+      "type": "number"
+    },
+    "business_area": {
+      "type": "string",
+      "enum": [
+        "Online Shop",
+        "Event",
+        "Wholesale",
+        "General",
+        "Inventory / Stock",
+        "Transport / Logistics"
+      ]
+    },
+    "cost_type": {
+      "type": "string",
+      "enum": [
+        "Meat Purchase",
+        "Transport / Logistics",
+        "Operating Expense",
+        "Event Cost",
+        "Other"
+      ]
+    },
+    "category": {
+      "type": "string"
+    },
+    "linked_shipment": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "review_status": {
+      "type": "string",
+      "enum": [
+        "needs_review",
+        "OK",
+        "Ignore"
+      ],
+      "default": "needs_review"
+    }
+  },
+  "required": [
+    "import_type",
+    "filename"
+  ]
+}
