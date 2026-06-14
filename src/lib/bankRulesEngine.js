@@ -24,44 +24,72 @@ function amountIn(record) { return Number(record?.amount_in || 0); }
 function hasAny(text, words) { return words.some(w => text.includes(normalizeText(w))); }
 
 function isPnlExpense(costType) {
-  return ["Operating Expense", "Shipping Cost", "Event Cost"].includes(costType);
+  return ["Operating Expense", "Shipping Cost", "Event Cost", "Car rental NL", "Transport Spain to Amsterdam"].includes(costType);
 }
 
 function buildUpdate({ cost_type, channel = "Other", review_status = "OK", amount = 0, incomingAmount = 0 }) {
-  const expenseRefund = cost_type === "Expense Refund" ? incomingAmount : 0;
+  const isExpenseRefund = cost_type === "Expense Refund";
+  const signedCarRental = cost_type === "Car rental NL" ? amount - incomingAmount : 0;
+  const signedSpainTransport = cost_type === "Transport Spain to Amsterdam" ? amount - incomingAmount : 0;
+  const genericRefund = isExpenseRefund ? incomingAmount : 0;
+
   return {
     cost_type,
     channel,
     review_status,
-    counted_expense: isPnlExpense(cost_type) ? amount : (cost_type === "Expense Refund" ? -expenseRefund : 0),
+    counted_expense: isPnlExpense(cost_type) ? amount : (isExpenseRefund ? -genericRefund : 0),
     shipping_cost: cost_type === "Shipping Cost" ? amount : 0,
-    operating_expenses: cost_type === "Operating Expense" ? amount : (cost_type === "Expense Refund" ? -expenseRefund : 0),
+    operating_expenses: cost_type === "Operating Expense" ? amount : (isExpenseRefund ? -genericRefund : 0),
+    car_rental_nl: signedCarRental,
+    transport_spain_to_amsterdam: signedSpainTransport,
     event_cost: cost_type === "Event Cost" ? amount : 0,
     meat_purchase: cost_type === "Meat Purchase" ? amount : 0,
     refund_amount: cost_type === "Refund" ? amount : 0,
-    expense_refund_amount: expenseRefund,
+    expense_refund_amount: genericRefund || (incomingAmount > 0 && ["Car rental NL", "Transport Spain to Amsterdam"].includes(cost_type) ? incomingAmount : 0),
   };
 }
 
-export function classifyBankTransaction(record) {
+function learnedMatch(record, learnedRules = []) {
+  const text = getBankSearchText(record);
+  const rules = (learnedRules || []).filter(r => r.keyword && r.cost_type && r.review_status === "OK");
+  const best = rules
+    .filter(r => text.includes(normalizeText(r.keyword)))
+    .sort((a, b) => normalizeText(b.keyword).length - normalizeText(a.keyword).length)[0];
+  if (!best) return null;
+  const out = amountOut(record);
+  const incoming = amountIn(record);
+  return buildUpdate({ cost_type: best.cost_type, channel: best.channel || "Other", review_status: "OK", amount: out, incomingAmount: incoming });
+}
+
+export function buildLearnedBankRules(records = []) {
+  const seen = new Map();
+  for (const r of records) {
+    if (r.review_status !== "OK" || !r.cost_type || ["Manual Review", "Ignore"].includes(r.cost_type)) continue;
+    const text = getBankSearchText(r);
+    const firstWords = text.split(" ").filter(Boolean).slice(0, 3).join(" ");
+    if (firstWords.length < 4) continue;
+    const key = firstWords;
+    if (!seen.has(key)) seen.set(key, { keyword: key, cost_type: r.cost_type, channel: r.channel || "Other", review_status: "OK" });
+  }
+  return Array.from(seen.values());
+}
+
+export function classifyBankTransaction(record, learnedRules = []) {
   const text = getBankSearchText(record);
   const out = amountOut(record);
   const incoming = amountIn(record);
 
-  // Diks / car-rental deposit logic:
-  // - outgoing charge is temporarily counted as Operating Expense
-  // - incoming refund reduces Operating Expense
-  // If the refund went to a personal account, add a manual positive Expense Refund line.
-  if (incoming > 0 && hasAny(text, ["diks", "autoverhuur", "car rental", "rental car", "huurauto"])) {
-    return buildUpdate({ cost_type: "Expense Refund", channel: "Other", review_status: "OK", incomingAmount: incoming });
+  const learned = learnedMatch(record, learnedRules);
+  if (learned) return learned;
+
+  if ((incoming > 0 || out > 0) && hasAny(text, ["diks", "autoverhuur", "mollie diks", "car rental", "rental car", "huurauto", "free2move", "greenwheels", "miles", "sixt", "hertz", "avis"])) {
+    return buildUpdate({ cost_type: "Car rental NL", channel: "Other", review_status: "OK", amount: out, incomingAmount: incoming });
   }
 
-  if (out > 0 && hasAny(text, ["diks", "autoverhuur", "mollie diks", "car rental", "rental car", "huurauto"])) {
-    return buildUpdate({ cost_type: "Operating Expense", channel: "Other", review_status: "OK", amount: out });
+  if (out > 0 && hasAny(text, ["ondara", "volanti", "cargo", "dlg", "warehouse", "almacen", "transport spain", "spain amsterdam", "malaga", "valencia", "pallet", "freight", "groupage", "logistics spain"])) {
+    return buildUpdate({ cost_type: "Transport Spain to Amsterdam", channel: "Online Shop", review_status: "OK", amount: out });
   }
 
-  // MCT PID rows are Mollie/SumUp/card payout-style incoming payments in this bank export.
-  // They are not revenue: revenue is imported from SumUp Sales. They are reconciled cash-in.
   if (incoming > 0 && hasAny(text, ["mct pid", "sumup", "stichting derdengelden", "payout", "uitbetaling", "mctx", "betaling ontvangen", "mollie"])) {
     return buildUpdate({ cost_type: "Payment Processor Payout", channel: "Online Shop", review_status: "OK", amount: 0 });
   }
@@ -70,45 +98,26 @@ export function classifyBankTransaction(record) {
     return buildUpdate({ cost_type: "Loan In / Payback", channel: "Other", review_status: "OK", amount: 0 });
   }
 
-  if (incoming > 0) {
-    return buildUpdate({ cost_type: "Transfer / Reconciliation", channel: "Other", review_status: "To review", amount: 0 });
-  }
-
+  if (incoming > 0) return buildUpdate({ cost_type: "Transfer / Reconciliation", channel: "Other", review_status: "To review", amount: 0 });
   if (out <= 0) return buildUpdate({ cost_type: "Manual Review", channel: "Other", review_status: "To review", amount: 0 });
 
   if (hasAny(text, ["refund", "terugbetaling", "retour", "reversal", "restitutie", "chargeback", "dispute", "storno", "terugboeking"])) {
     return buildUpdate({ cost_type: "Refund", channel: "Online Shop", review_status: "OK", amount: out });
   }
 
-  if (hasAny(text, [
-    "la maxima", "lamaxima", "mercadrian", "adrian", "meat boys", "meatboys", "ondara",
-    "carnicer", "slager", "beef", "vlees", "meat", "proveedor", "supplier"
-  ])) {
+  if (hasAny(text, ["la maxima", "lamaxima", "mercadrian", "adrian", "meat boys", "meatboys", "carnicer", "slager", "beef", "vlees", "meat", "proveedor", "supplier"])) {
     return buildUpdate({ cost_type: "Meat Purchase", channel: "Online Shop", review_status: "OK", amount: out });
   }
 
-  if (hasAny(text, [
-    "dhl", "postnl", "ups", "dpd", "fedex", "gls", "transport", "logistic", "logistics",
-    "pallet", "freight", "shipment", "shipping", "delivery", "koerier", "courier"
-  ])) {
+  if (hasAny(text, ["dhl", "postnl", "ups", "dpd", "fedex", "gls", "shipping", "delivery", "koerier", "courier"])) {
     return buildUpdate({ cost_type: "Shipping Cost", channel: "Online Shop", review_status: "OK", amount: out });
   }
 
-  if (hasAny(text, [
-    "festival", "event", "venue", "atelier", "code noir", "bouncespace", "bloomingdale",
-    "macumba", "fourvenues", "ticket", "tlx", "stand", "kraam", "tent", "sound", "dj"
-  ])) {
+  if (hasAny(text, ["festival", "event", "venue", "atelier", "code noir", "bouncespace", "bloomingdale", "macumba", "fourvenues", "ticket", "tlx", "stand", "kraam", "tent", "sound", "dj"])) {
     return buildUpdate({ cost_type: "Event Cost", channel: "Event", review_status: "OK", amount: out });
   }
 
-  if (hasAny(text, [
-    "free2move", "greenwheels", "miles", "sixt", "hertz", "avis", "rental", "rent a car",
-    "shell", "bp", "esso", "total", "tango", "fuel", "benzine", "parking", "parkeren",
-    "praxis", "gamma", "hornbach", "action", "bol com", "amazon", "ikea", "makro", "hanos", "sligro",
-    "kvk", "belastingdienst", "gemeente", "tax", "bankkosten", "bank cost", "fee", "kosten",
-    "google", "meta", "facebook", "instagram", "shopify", "canva", "notion", "base44", "netlify", "vercel",
-    "jumbo", "bagels beans", "ft store"
-  ])) {
+  if (hasAny(text, ["shell", "bp", "esso", "total", "tango", "fuel", "benzine", "parking", "parkeren", "praxis", "gamma", "hornbach", "action", "bol com", "amazon", "ikea", "makro", "hanos", "sligro", "kvk", "belastingdienst", "gemeente", "tax", "bankkosten", "bank cost", "fee", "kosten", "google", "meta", "facebook", "instagram", "shopify", "canva", "notion", "base44", "netlify", "vercel", "jumbo", "bagels beans", "ft store"])) {
     return buildUpdate({ cost_type: "Operating Expense", channel: "Other", review_status: "OK", amount: out });
   }
 
@@ -119,6 +128,6 @@ export function classifyBankTransaction(record) {
   return buildUpdate({ cost_type: "Manual Review", channel: "Other", review_status: "To review", amount: 0 });
 }
 
-export function applyBankRule(record) {
-  return classifyBankTransaction(record);
+export function applyBankRule(record, learnedRules = []) {
+  return classifyBankTransaction(record, learnedRules);
 }
