@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, RefreshCw, Wand2 } from "lucide-react";
+import { Search, RefreshCw, Wand2, RotateCcw } from "lucide-react";
 import BankRowEditor from "@/components/review/BankRowEditor";
 import { applyBankRule } from "@/lib/bankRulesEngine";
 
@@ -24,13 +24,8 @@ export default function ReviewBank() {
       base44.entities.ImportBatch.filter({ status: "imported" }),
       base44.entities.BankTransaction.list("-date", 5000),
     ]);
-    const activeBatchIds = new Set(
-      activeBatches.filter(b => b.import_type === "bank_transactions").map(b => b.id)
-    );
-    const activeRecs = recs.filter(r =>
-      r.is_active !== false &&
-      (!r.import_batch_id || activeBatchIds.has(r.import_batch_id))
-    );
+    const activeBatchIds = new Set(activeBatches.filter(b => b.import_type === "bank_transactions").map(b => b.id));
+    const activeRecs = recs.filter(r => r.is_active !== false && (!r.import_batch_id || activeBatchIds.has(r.import_batch_id)));
     setRecords(activeRecs);
     setLoading(false);
   };
@@ -47,7 +42,7 @@ export default function ReviewBank() {
       const recMonth = r.accounting_month || r.month;
       const monthOk = selectedMonth === "all" || recMonth === selectedMonth;
       const statusOk = statusFilter === "all" || r.review_status === statusFilter;
-      const text = `${r.reference || ""} ${r.payment_ref || ""} ${r.counterparty || ""}`.toLowerCase();
+      const text = `${r.reference || ""} ${r.payment_ref || ""} ${r.counterparty || ""} ${r.cost_type || ""}`.toLowerCase();
       const searchOk = !search || text.includes(search.toLowerCase());
       return monthOk && statusOk && searchOk;
     });
@@ -59,17 +54,29 @@ export default function ReviewBank() {
     setEditingId(null);
   };
 
-  const handleApplyRules = async () => {
+  const runClassification = async ({ includeOldIgnored = false } = {}) => {
     setApplying(true);
     setApplyMessage(null);
+
     const targetRecords = records.filter(r => {
       const recMonth = r.accounting_month || r.month;
       const monthOk = selectedMonth === "all" || recMonth === selectedMonth;
-      return monthOk && r.review_status === "To review";
+      if (!monthOk) return false;
+
+      if (r.review_status === "To review") return true;
+
+      // Reclassify old rows that were previously hidden as generic Ignore.
+      // Rows already reviewed as a specific type stay untouched.
+      if (includeOldIgnored) {
+        return r.review_status === "Ignore" && (!r.cost_type || r.cost_type === "Ignore");
+      }
+      return false;
     });
 
-    let ok = 0, ignored = 0, stillReview = 0;
-    const updatedRows = [];
+    let ok = 0;
+    let ignored = 0;
+    let stillReview = 0;
+    let updatedRows = [];
 
     try {
       for (const record of targetRecords) {
@@ -88,11 +95,11 @@ export default function ReviewBank() {
 
       setApplyMessage({
         type: stillReview > 0 ? "warning" : "success",
-        text: `Applied bank rules to ${targetRecords.length} row(s). OK: ${ok}, Ignored/reconciliation: ${ignored}, Still to review: ${stillReview}.`,
+        text: `${includeOldIgnored ? "Reprocessed" : "Classified"} ${targetRecords.length} bank row(s). OK: ${ok}, Ignored: ${ignored}, Still to review: ${stillReview}.`,
       });
     } catch (err) {
-      console.error("Failed to apply bank rules", err);
-      setApplyMessage({ type: "error", text: err?.message || "Failed to apply bank rules." });
+      console.error("Failed to classify bank rows", err);
+      setApplyMessage({ type: "error", text: err?.message || "Failed to classify bank rows." });
     } finally {
       setApplying(false);
     }
@@ -111,10 +118,14 @@ export default function ReviewBank() {
       ok: visible.filter(r => r.review_status === "OK").length,
       review: visible.filter(r => r.review_status === "To review").length,
       ignore: visible.filter(r => r.review_status === "Ignore").length,
+      oldGenericIgnore: visible.filter(r => r.review_status === "Ignore" && (!r.cost_type || r.cost_type === "Ignore")).length,
       operating: visible.reduce((s, r) => s + Number(r.operating_expenses || 0), 0),
       shipping: visible.reduce((s, r) => s + Number(r.shipping_cost || 0), 0),
       event: visible.reduce((s, r) => s + Number(r.event_cost || 0), 0),
       purchases: visible.reduce((s, r) => s + Number(r.meat_purchase || 0), 0),
+      payouts: visible.filter(r => r.cost_type === "Payment Processor Payout").reduce((s, r) => s + Number(r.amount_in || 0), 0),
+      loansIn: visible.filter(r => r.cost_type === "Loan In / Payback").reduce((s, r) => s + Number(r.amount_in || 0), 0),
+      transfers: visible.filter(r => r.cost_type === "Transfer / Reconciliation").reduce((s, r) => s + Number(r.amount_in || 0) + Number(r.amount_out || 0), 0),
     };
   }, [records, selectedMonth]);
 
@@ -126,8 +137,11 @@ export default function ReviewBank() {
           <p className="text-muted-foreground text-sm mt-1">{filtered.length} records shown</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={handleApplyRules} disabled={applying || records.length === 0}>
-            <Wand2 className="w-4 h-4 mr-2" /> {applying ? "Applying…" : "Apply Bank Rules"}
+          <Button variant="outline" size="sm" onClick={() => runClassification({ includeOldIgnored: false })} disabled={applying || records.length === 0}>
+            <Wand2 className="w-4 h-4 mr-2" /> {applying ? "Classifying…" : "Classify To Review"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => runClassification({ includeOldIgnored: true })} disabled={applying || records.length === 0}>
+            <RotateCcw className="w-4 h-4 mr-2" /> Reprocess Old Ignores
           </Button>
           <Button variant="outline" size="sm" onClick={load}>
             <RefreshCw className="w-4 h-4 mr-2" /> Refresh
@@ -139,11 +153,18 @@ export default function ReviewBank() {
         <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Rows</div><div className="font-semibold">{summary.rows}</div></div>
         <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">OK</div><div className="font-semibold text-green-700">{summary.ok}</div></div>
         <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">To review</div><div className="font-semibold text-yellow-700">{summary.review}</div></div>
-        <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Ignored</div><div className="font-semibold text-slate-600">{summary.ignore}</div></div>
+        <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Old generic ignore</div><div className="font-semibold text-amber-700">{summary.oldGenericIgnore}</div></div>
+        <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Payouts cash</div><div className="font-semibold">€{summary.payouts.toFixed(2)}</div></div>
+        <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Loans/paybacks</div><div className="font-semibold">€{summary.loansIn.toFixed(2)}</div></div>
         <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Operating</div><div className="font-semibold">€{summary.operating.toFixed(2)}</div></div>
+        <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Meat purchases</div><div className="font-semibold">€{summary.purchases.toFixed(2)}</div></div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Ignored total</div><div className="font-semibold text-slate-600">{summary.ignore}</div></div>
         <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Shipping</div><div className="font-semibold">€{summary.shipping.toFixed(2)}</div></div>
         <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Event</div><div className="font-semibold">€{summary.event.toFixed(2)}</div></div>
-        <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Meat purchases</div><div className="font-semibold">€{summary.purchases.toFixed(2)}</div></div>
+        <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Transfers/recon</div><div className="font-semibold">€{summary.transfers.toFixed(2)}</div></div>
       </div>
 
       {applyMessage && (
@@ -157,7 +178,7 @@ export default function ReviewBank() {
       )}
 
       <div className="rounded-lg border bg-slate-50 px-4 py-3 text-xs text-slate-700">
-        Bank rules classify cash movements. SumUp payouts are ignored as reconciliation; meat purchases are tracked separately as inventory cash movement and are not counted as COGS; COGS comes from Sales x Monthly Prices.
+        Bank rows are cash movements. Card payouts should be “Payment Processor Payout” for reconciliation, not revenue. SumUp fees come from the SumUp Transaction Report. Loan/payback rows affect cash but not profit.
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -179,7 +200,7 @@ export default function ReviewBank() {
         </Select>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input className="pl-9 w-56" placeholder="Search reference..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input className="pl-9 w-56" placeholder="Search reference/category..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
 
@@ -191,7 +212,7 @@ export default function ReviewBank() {
             <table className="w-full text-sm">
               <thead className="bg-muted text-muted-foreground text-xs">
                 <tr>
-                  {["Date", "Type", "Reference", "Payment Ref", "Amount Out", "Amount In", "Cost Type", "Channel", "Status", ""].map(h => (
+                  {["Date", "Type", "Reference", "Payment Ref", "Amount Out", "Amount In", "Cost / Cash Type", "Channel", "Status", ""].map(h => (
                     <th key={h} className="px-3 py-2 text-left font-medium whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
