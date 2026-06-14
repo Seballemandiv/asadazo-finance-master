@@ -17,8 +17,13 @@ export default function ReviewBank() {
 
   const load = async () => {
     setLoading(true);
-    const recs = await base44.entities.BankTransaction.list("-date", 5000);
-    setRecords(recs);
+    const [activeBatches, recs] = await Promise.all([
+      base44.entities.ImportBatch.filter({ status: "imported" }),
+      base44.entities.BankTransaction.list("-date", 5000),
+    ]);
+    const activeBatchIds = new Set(activeBatches.map(b => b.id));
+    const activeRecs = recs.filter(r => !r.import_batch_id || activeBatchIds.has(r.import_batch_id));
+    setRecords(activeRecs);
     setLoading(false);
   };
 

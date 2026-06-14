@@ -20,12 +20,15 @@ export default function ReviewSales() {
 
   const load = async () => {
     setLoading(true);
-    const [recs, maps, cuts] = await Promise.all([
+    const [activeBatches, recs, maps, cuts] = await Promise.all([
+      base44.entities.ImportBatch.filter({ status: "imported" }),
       base44.entities.SalesRecord.list("-date", 5000),
       base44.entities.ProductMapping.list(),
       base44.entities.CutCost.list(),
     ]);
-    setRecords(recs);
+    const activeBatchIds = new Set(activeBatches.map(b => b.id));
+    const activeRecs = recs.filter(r => !r.import_batch_id || activeBatchIds.has(r.import_batch_id));
+    setRecords(activeRecs);
     setMappings(maps);
     setCutCosts(cuts);
     setLoading(false);

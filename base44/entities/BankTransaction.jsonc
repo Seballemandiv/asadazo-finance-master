@@ -89,6 +89,10 @@
     "meat_purchase": {
       "type": "number",
       "default": 0
+    },
+    "import_batch_id": {
+      "type": "string",
+      "description": "Reference to the ImportBatch that created this row"
     }
   },
   "required": []

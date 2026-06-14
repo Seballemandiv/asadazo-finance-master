@@ -10,7 +10,7 @@ const SALES_RECORD_FIELDS = new Set([
   "vat", "vat_rate", "discount", "mapping_status", "revenue_type", "channel",
   "cut", "kg_per_unit", "cost_per_kg", "meat_cogs", "product_revenue_ex_vat",
   "shipping_revenue_ex_vat", "event_revenue_ex_vat", "other_revenue_ex_vat",
-  "review_flag", "order_flag",
+  "review_flag", "order_flag", "import_batch_id",
 ]);
 
 // Fields that are valid on BankTransaction entity
@@ -18,7 +18,7 @@ const BANK_TRANSACTION_FIELDS = new Set([
   "date", "month", "code", "type", "reference", "payment_ref", "status",
   "amount_out", "amount_in", "fees", "balance", "category", "cost_type",
   "channel", "review_status", "counted_expense", "shipping_cost",
-  "operating_expenses", "event_cost", "meat_purchase",
+  "operating_expenses", "event_cost", "meat_purchase", "import_batch_id",
 ]);
 
 /**
@@ -145,7 +145,7 @@ export async function saveImportBatch({
   // Save in chunks — await each chunk sequentially to respect rate limits
   for (let i = 0; i < processed.length; i += CHUNK) {
     const chunk = processed.slice(i, i + CHUNK);
-    await Promise.all(chunk.map(p => entity.create(p)));
+    await Promise.all(chunk.map(p => entity.create({ ...p, import_batch_id: batchId })));
   }
 
   const months = Array.from(monthsSet).sort();

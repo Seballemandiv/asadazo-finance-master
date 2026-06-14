@@ -118,6 +118,10 @@
     },
     "order_flag": {
       "type": "number"
+    },
+    "import_batch_id": {
+      "type": "string",
+      "description": "Reference to the ImportBatch that created this row"
     }
   },
   "required": [

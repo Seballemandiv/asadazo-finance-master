@@ -19,12 +19,18 @@ export default function Dashboard() {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      const [sales, bank] = await Promise.all([
+      // Load active batch IDs first, then filter child records
+      const [allBatches, sales, bank] = await Promise.all([
+        base44.entities.ImportBatch.filter({ status: "imported" }),
         base44.entities.SalesRecord.list("-date", 5000),
         base44.entities.BankTransaction.list("-date", 5000),
       ]);
-      setSalesRecords(sales);
-      setBankTransactions(bank);
+      const activeBatchIds = new Set(allBatches.map(b => b.id));
+      // Only include records that belong to an active batch (or have no batch id = legacy, keep until reset)
+      const activeSales = sales.filter(r => !r.import_batch_id || activeBatchIds.has(r.import_batch_id));
+      const activeBank = bank.filter(r => !r.import_batch_id || activeBatchIds.has(r.import_batch_id));
+      setSalesRecords(activeSales);
+      setBankTransactions(activeBank);
       setLoading(false);
     };
     loadData();
