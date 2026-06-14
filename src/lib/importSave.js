@@ -204,7 +204,6 @@ export async function saveImportBatch({
   const info = getEntityInfo(importType);
   if (!info) throw new Error(`Unknown import type: ${importType}`);
 
-  const batchId = crypto.randomUUID();
   const importedAt = new Date().toISOString();
   const importDate = importedAt.slice(0, 10);
 
@@ -222,19 +221,17 @@ export async function saveImportBatch({
     return p;
   });
 
-  // Save in chunks
-  for (let i = 0; i < processed.length; i += CHUNK) {
-    const chunk = processed.slice(i, i + CHUNK);
-    await Promise.all(chunk.map(p => info.entity.create({ ...p, import_batch_id: batchId })));
-  }
-
   const months = Array.from(monthsSet).sort();
   const dates = Array.from(dateSet).sort();
   const dateRange = dates.length > 0
     ? (dates.length === 1 ? dates[0] : `${dates[0]} → ${dates[dates.length - 1]}`)
     : "";
 
-  await base44.entities.ImportBatch.create({
+  // Create the ImportBatch first and use the real Base44 id on every row.
+  // Previous code generated a crypto UUID for rows, then created ImportBatch later.
+  // Base44 assigns its own ImportBatch.id, so Dashboard batch matching could see
+  // active imports but exclude all child rows, causing €0 after a successful upload.
+  const createdBatch = await base44.entities.ImportBatch.create({
     import_type: importType,
     source_file_name: filename,
     filename,
@@ -245,7 +242,7 @@ export async function saveImportBatch({
     date_range_detected: dateRange,
     month: months[0] || fallbackMonth || "",
     rows_detected: rows.length,
-    rows_saved: rows.length,
+    rows_saved: 0,
     row_count: rows.length,
     errors_count: 0,
     error_count: 0,
@@ -254,7 +251,42 @@ export async function saveImportBatch({
     notes: months.length > 1 ? `Months: ${months.join(", ")}` : "",
   });
 
-  return { batchId, rowCount: rows.length, months };
+  const batchId = createdBatch?.id;
+  if (!batchId) {
+    throw new Error("ImportBatch was created but no id was returned. Cannot link imported rows to the batch.");
+  }
+
+  let savedCount = 0;
+  try {
+    for (let i = 0; i < processed.length; i += CHUNK) {
+      const chunk = processed.slice(i, i + CHUNK);
+      await Promise.all(chunk.map(p => info.entity.create({ ...p, import_batch_id: batchId })));
+      savedCount += chunk.length;
+    }
+
+    await base44.entities.ImportBatch.update(batchId, {
+      rows_saved: savedCount,
+      row_count: savedCount,
+      errors_count: 0,
+      error_count: 0,
+      status: "imported",
+    });
+  } catch (err) {
+    try {
+      await base44.entities.ImportBatch.update(batchId, {
+        rows_saved: savedCount,
+        errors_count: rows.length - savedCount,
+        error_count: rows.length - savedCount,
+        status: "failed_save",
+        notes: `Failed while saving child rows. Saved ${savedCount}/${rows.length}. Error: ${err?.message || err}`,
+      });
+    } catch (updateErr) {
+      console.error("Could not mark ImportBatch as failed_save", updateErr);
+    }
+    throw err;
+  }
+
+  return { batchId, rowCount: savedCount, months };
 }
 
 /**
