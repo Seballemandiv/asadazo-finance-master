@@ -58,6 +58,7 @@
         "Shipping Cost",
         "Event Cost",
         "Meat Purchase",
+        "Refund",
         "Owner Payment",
         "Ignore"
       ]
@@ -97,6 +98,10 @@
       "default": 0
     },
     "meat_purchase": {
+      "type": "number",
+      "default": 0
+    },
+    "refund_amount": {
       "type": "number",
       "default": 0
     },
