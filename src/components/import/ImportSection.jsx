@@ -1,17 +1,17 @@
 import React, { useState } from "react";
-import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, AlertCircle, X, FileText } from "lucide-react";
+import { AlertCircle, CheckCircle2, X, FileText } from "lucide-react";
 import FileUploadZone from "./FileUploadZone";
 import ColumnMapper from "./ColumnMapper";
 import PreviewTable from "./PreviewTable";
 import PasteTextFallback from "./PasteTextFallback";
-import { parseFile, hashFile, detectMonth } from "@/lib/fileParser";
-import { IMPORT_CONFIGS, autoDetectMapping } from "@/lib/importConfigs";
+import { parseFile, hashFile } from "@/lib/fileParser";
+import { IMPORT_CONFIGS, autoDetectMapping, validateMapping } from "@/lib/importConfigs";
+import { saveImportBatch } from "@/lib/importSave";
+import { parseDate } from "@/lib/dateParser";
+import { base44 } from "@/api/base44Client";
 
 const MONTHS = Array.from({ length: 24 }, (_, i) => {
   const d = new Date();
@@ -19,24 +19,35 @@ const MONTHS = Array.from({ length: 24 }, (_, i) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 });
 
+function detectFallbackMonth(rows, mapping, dateField) {
+  const dateSource = mapping[dateField];
+  if (!dateSource) return MONTHS[0];
+  for (const row of rows) {
+    const parsed = parseDate(row[dateSource]);
+    if (parsed) return parsed.month;
+  }
+  return MONTHS[0];
+}
+
 export default function ImportSection({ importType, onImportDone }) {
   const config = IMPORT_CONFIGS[importType];
 
-  const [stage, setStage] = useState("upload"); // upload | preview | done
+  const [stage, setStage] = useState("upload");
   const [fileName, setFileName] = useState("");
   const [fileHash, setFileHash] = useState("");
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
   const [mapping, setMapping] = useState({});
-  const [month, setMonth] = useState("");
+  const [fallbackMonth, setFallbackMonth] = useState(MONTHS[0]);
   const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState(null); // { rowCount, errorCount }
+  const [result, setResult] = useState(null);
   const [dupWarning, setDupWarning] = useState(false);
 
   const reset = () => {
     setStage("upload");
     setFileName(""); setFileHash(""); setHeaders([]); setRows([]);
-    setMapping({}); setMonth(""); setSaving(false); setResult(null); setDupWarning(false);
+    setMapping({}); setFallbackMonth(MONTHS[0]); setSaving(false);
+    setResult(null); setDupWarning(false);
   };
 
   const handleFile = async (file) => {
@@ -45,88 +56,39 @@ export default function ImportSection({ importType, onImportDone }) {
   };
 
   const loadParsed = async ({ headers, rows }, name, hash) => {
-    // Check duplicate
     if (hash) {
       const existing = await base44.entities.ImportBatch.filter({ file_hash: hash, status: "imported" });
-      if (existing.length > 0) {
-        setDupWarning(true);
-      }
+      if (existing.length > 0) setDupWarning(true);
     }
     const autoMapping = autoDetectMapping(headers, importType);
-    const detectedMonth = detectMonth(rows, autoMapping[config.dateField] || headers.find(h => /date|datum/i.test(h)));
+    const detectedMonth = detectFallbackMonth(rows, autoMapping, config.dateField);
     setFileName(name || "pasted");
     setFileHash(hash || "");
     setHeaders(headers);
     setRows(rows);
     setMapping(autoMapping);
-    setMonth(detectedMonth || MONTHS[0]);
+    setFallbackMonth(detectedMonth);
     setStage("preview");
   };
 
+  // Validation
+  const missingFields = validateMapping(mapping, importType);
+  const canSave = missingFields.length === 0;
+
   const handleSave = async () => {
     setSaving(true);
-    try {
-      const batchId = `batch_${Date.now()}`;
-      const importDate = new Date().toISOString().slice(0, 10);
-
-      // Save raw rows as-is with the mapping applied as metadata — actual row saving is done per import type downstream
-      // For now we just record the batch + write each row to the appropriate entity
-      const saveRow = async (row, bId) => {
-        const entity = getEntityForType(importType);
-        if (!entity) return;
-        const mapped = {};
-        for (const [target, source] of Object.entries(mapping)) {
-          if (source) mapped[target] = row[source] ?? "";
-        }
-        // Enrich with batch and month info
-        mapped.import_batch_id = bId;
-        mapped.import_type = importType;
-        mapped.month = month;
-        await entity.create(mapped);
-      };
-
-      let errorCount = 0;
-      let rowCount = 0;
-
-      // Save in batches of 5 to avoid rate limiting
-      const CHUNK = 5;
-      for (let i = 0; i < rows.length; i += CHUNK) {
-        const chunk = rows.slice(i, i + CHUNK);
-        const results = await Promise.allSettled(chunk.map(row => saveRow(row, batchId)));
-        rowCount += results.filter(r => r.status === "fulfilled").length;
-        errorCount += results.filter(r => r.status === "rejected").length;
-      }
-
-      await base44.entities.ImportBatch.create({
-        import_type: importType,
-        filename: fileName,
-        file_hash: fileHash,
-        import_date: importDate,
-        month,
-        row_count: rowCount,
-        error_count: errorCount,
-        status: "imported",
-        column_mapping: JSON.stringify(mapping),
-      });
-
-      setResult({ rowCount, errorCount });
-      setStage("done");
-      onImportDone?.();
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const getEntityForType = (type) => {
-    switch (type) {
-      case "sumup_sales": return base44.entities.SalesRecord;
-      case "sumup_articles": return base44.entities.SalesRecord;
-      case "sumup_transactions": return base44.entities.SalesRecord;
-      case "bank_transactions": return base44.entities.BankTransaction;
-      case "supplier_documents": return base44.entities.BankTransaction;
-      case "logistics_documents": return base44.entities.BankTransaction;
-      default: return null;
-    }
+    const res = await saveImportBatch({
+      importType,
+      rows,
+      mapping,
+      filename: fileName,
+      fileHash,
+      fallbackMonth,
+    });
+    setSaving(false);
+    setResult(res);
+    setStage("done");
+    onImportDone?.();
   };
 
   return (
@@ -160,19 +122,20 @@ export default function ImportSection({ importType, onImportDone }) {
             {dupWarning && (
               <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                A file with the same content was already imported. You can continue, but check for duplicates.
+                A file with the same content was already imported. Check for duplicates before saving.
               </div>
             )}
 
-            <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+            {/* File info + fallback month */}
+            <div className="flex flex-wrap items-center gap-3 p-3 bg-muted/30 rounded-lg">
               <FileText className="w-5 h-5 text-muted-foreground flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{fileName}</p>
-                <p className="text-xs text-muted-foreground">{rows.length} rows detected</p>
+                <p className="text-xs text-muted-foreground">{rows.length} rows · {importType}</p>
               </div>
               <div className="flex items-center gap-2">
-                <label className="text-xs text-muted-foreground">Month:</label>
-                <Select value={month} onValueChange={setMonth}>
+                <label className="text-xs text-muted-foreground whitespace-nowrap">Import fallback month:</label>
+                <Select value={fallbackMonth} onValueChange={setFallbackMonth}>
                   <SelectTrigger className="w-32 h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
@@ -181,6 +144,17 @@ export default function ImportSection({ importType, onImportDone }) {
               </div>
             </div>
 
+            {/* Validation warning */}
+            {missingFields.length > 0 && (
+              <div className="flex items-start gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-medium">Required fields not mapped:</span>{" "}
+                  {missingFields.join(", ")}. Please map these columns before saving.
+                </div>
+              </div>
+            )}
+
             <ColumnMapper
               targetFields={config.targetFields}
               fileHeaders={headers}
@@ -188,11 +162,20 @@ export default function ImportSection({ importType, onImportDone }) {
               onChange={setMapping}
             />
 
-            <PreviewTable headers={headers} rows={rows} />
+            <PreviewTable
+              headers={headers}
+              rows={rows}
+              mapping={mapping}
+              importType={importType}
+            />
 
             <div className="flex items-center gap-3 pt-2">
-              <Button onClick={handleSave} disabled={saving} className="bg-[#611111] hover:bg-[#450A0A] text-white">
-                {saving ? "Saving…" : `Save ${rows.length} rows`}
+              <Button
+                onClick={handleSave}
+                disabled={saving || !canSave}
+                className="bg-[#611111] hover:bg-[#450A0A] text-white disabled:opacity-50"
+              >
+                {saving ? "Saving…" : `Save Import Batch (${rows.length} rows)`}
               </Button>
               <Button variant="outline" onClick={reset} disabled={saving}>Cancel</Button>
             </div>
@@ -207,7 +190,10 @@ export default function ImportSection({ importType, onImportDone }) {
               <p className="text-sm font-semibold text-green-800">Import complete</p>
               <p className="text-xs text-green-700 mt-0.5">
                 {result.rowCount} rows saved
-                {result.errorCount > 0 && `, ${result.errorCount} errors`}
+                {result.errorCount > 0 && <span className="text-red-600 ml-1">· {result.errorCount} errors</span>}
+                {result.months?.length > 0 && (
+                  <span className="ml-1">· months: {result.months.join(", ")}</span>
+                )}
               </p>
             </div>
             <Button size="sm" variant="outline" onClick={reset}>Import another</Button>

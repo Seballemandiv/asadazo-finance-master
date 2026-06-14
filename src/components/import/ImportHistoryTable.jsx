@@ -21,35 +21,39 @@ export default function ImportHistoryTable({ refreshKey }) {
   useEffect(() => { load(); }, [refreshKey]);
 
   const handleRevert = async (batch) => {
-    if (!confirm(`Revert "${batch.filename}" (${batch.row_count} rows)? All imported rows from this batch will be deleted.`)) return;
+    if (!confirm(`Revert "${batch.filename}" (${batch.row_count} rows)? All rows from this batch will be deleted.`)) return;
     setReverting(batch.id);
-    try {
-      const isBankType = ["bank_transactions", "supplier_documents", "logistics_documents"].includes(batch.import_type);
-      if (isBankType) {
-        const recs = await base44.entities.BankTransaction.filter({ import_batch_id: batch.id });
-        await Promise.all(recs.map(r => base44.entities.BankTransaction.delete(r.id)));
-      } else {
-        const recs = await base44.entities.SalesRecord.filter({ import_batch_id: batch.id });
-        await Promise.all(recs.map(r => base44.entities.SalesRecord.delete(r.id)));
-      }
-      await base44.entities.ImportBatch.update(batch.id, { status: "reverted" });
-      setBatches(prev => prev.map(b => b.id === batch.id ? { ...b, status: "reverted" } : b));
-    } finally {
-      setReverting(null);
+    const isBankType = ["bank_transactions", "supplier_documents", "logistics_documents"].includes(batch.import_type);
+    if (isBankType) {
+      const recs = await base44.entities.BankTransaction.filter({ import_batch_id: batch.id });
+      await Promise.all(recs.map(r => base44.entities.BankTransaction.delete(r.id)));
+    } else {
+      const recs = await base44.entities.SalesRecord.filter({ import_batch_id: batch.id });
+      await Promise.all(recs.map(r => base44.entities.SalesRecord.delete(r.id)));
     }
+    await base44.entities.ImportBatch.update(batch.id, { status: "reverted" });
+    setBatches(prev => prev.map(b => b.id === batch.id ? { ...b, status: "reverted" } : b));
+    setReverting(null);
   };
 
-  const statusBadge = (status) => {
-    if (status === "imported") return <Badge className="bg-green-100 text-green-800 border-0 text-xs">Imported</Badge>;
-    return <Badge className="bg-red-100 text-red-700 border-0 text-xs">Reverted</Badge>;
+  // Extract month list from notes field ("Months: 2026-01, 2026-02")
+  const getMonths = (batch) => {
+    if (batch.notes?.startsWith("Months:")) {
+      return batch.notes.replace("Months:", "").trim();
+    }
+    return batch.month || "—";
   };
+
+  const statusBadge = (status) => status === "imported"
+    ? <Badge className="bg-green-100 text-green-800 border-0 text-xs">Imported</Badge>
+    : <Badge className="bg-red-100 text-red-700 border-0 text-xs">Reverted</Badge>;
 
   return (
     <Card className="shadow-none border">
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <CardTitle className="text-base">Import History</CardTitle>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={load}>
-          <RefreshCw className="w-3.5 h-3.5" />
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={load} disabled={loading}>
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
         </Button>
       </CardHeader>
       <CardContent className="p-0">
@@ -64,17 +68,17 @@ export default function ImportHistoryTable({ refreshKey }) {
             <table className="w-full text-xs">
               <thead className="bg-muted text-muted-foreground">
                 <tr>
-                  {["File Name", "Type", "Month", "Rows", "Errors", "Import Date", "Status", ""].map(h => (
+                  {["File Name", "Type", "Accounting Months", "Rows", "Errors", "Import Date", "Status", ""].map(h => (
                     <th key={h} className="px-3 py-2 text-left font-medium whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {batches.map(b => (
-                  <tr key={b.id} className="border-t hover:bg-muted/20">
+                  <tr key={b.id} className={`border-t hover:bg-muted/20 ${b.status === "reverted" ? "opacity-50" : ""}`}>
                     <td className="px-3 py-2 max-w-[200px] truncate font-medium" title={b.filename}>{b.filename}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{IMPORT_CONFIGS[b.import_type]?.label || b.import_type}</td>
-                    <td className="px-3 py-2 font-mono">{b.month}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{getMonths(b)}</td>
                     <td className="px-3 py-2 tabular-nums">{b.row_count ?? "—"}</td>
                     <td className="px-3 py-2 tabular-nums">
                       {b.error_count > 0
@@ -86,11 +90,11 @@ export default function ImportHistoryTable({ refreshKey }) {
                     <td className="px-3 py-2">
                       {b.status === "imported" && (
                         <Button
-                          size="icon"
-                          variant="ghost"
+                          size="icon" variant="ghost"
                           className="h-6 w-6 text-muted-foreground hover:text-destructive"
                           disabled={reverting === b.id}
                           onClick={() => handleRevert(b)}
+                          title="Revert / delete this import"
                         >
                           <Trash2 className="w-3 h-3" />
                         </Button>

@@ -2,7 +2,9 @@
  * Configuration for each import type:
  * - targetFields: the fields we want to extract
  * - autoMap: attempt to auto-detect file headers → target fields
- * - dateField: which target field contains the date (for month detection)
+ * - dateField: which target field contains the date
+ * - requiredFields: minimum fields needed for validation
+ * - numericFields: fields that should be parsed as numbers
  */
 
 export const IMPORT_CONFIGS = {
@@ -10,8 +12,8 @@ export const IMPORT_CONFIGS = {
     label: "SumUp Sales Report",
     description: "Export from SumUp → Reports → Sales",
     targetFields: [
-      { key: "transaction_id", label: "Transaction ID" },
       { key: "date", label: "Date", required: true },
+      { key: "transaction_id", label: "Transaction ID" },
       { key: "payment_method", label: "Payment Method" },
       { key: "gross_inc_vat", label: "Gross Amount (inc VAT)" },
       { key: "vat", label: "VAT Amount" },
@@ -21,28 +23,51 @@ export const IMPORT_CONFIGS = {
       { key: "order_id", label: "Order ID" },
     ],
     dateField: "date",
+    requiredFields: ["date", "gross_inc_vat"],
+    numericFields: ["gross_inc_vat", "vat", "net_ex_vat", "discount"],
     autoMap: {
-      "transaction id": "transaction_id",
-      "id": "transaction_id",
-      "date": "date",
       "datum": "date",
+      "date": "date",
+      "transaction date": "date",
+      "transactiedatum": "date",
+      "transactie-id": "transaction_id",
+      "transaction id": "transaction_id",
+      "transaction-id": "transaction_id",
+      "transactieid": "transaction_id",
+      "betaalmethode": "payment_method",
       "payment method": "payment_method",
-      "zahlungsmethode": "payment_method",
-      "methode": "payment_method",
-      "total": "gross_inc_vat",
+      "betaaltype": "payment_method",
+      "bruto": "gross_inc_vat",
+      "bruto (incl. btw)": "gross_inc_vat",
       "gross": "gross_inc_vat",
+      "gross amount": "gross_inc_vat",
+      "bedrag": "gross_inc_vat",
+      "amount": "gross_inc_vat",
+      "totaal": "gross_inc_vat",
+      "total": "gross_inc_vat",
       "total (eur)": "gross_inc_vat",
       "total eur": "gross_inc_vat",
       "brutto": "gross_inc_vat",
+      "btw": "vat",
       "vat": "vat",
+      "vat amount": "vat",
+      "tax": "vat",
       "mwst": "vat",
       "tax amount": "vat",
-      "net": "net_ex_vat",
-      "net (eur)": "net_ex_vat",
       "netto": "net_ex_vat",
+      "netto (excl. btw)": "net_ex_vat",
+      "net": "net_ex_vat",
+      "net amount": "net_ex_vat",
+      "amount excluding vat": "net_ex_vat",
+      "korting": "discount",
       "discount": "discount",
+      "valuta": "currency",
       "currency": "currency",
       "order id": "order_id",
+      "bestelling-id": "order_id",
+      "bestelling id": "order_id",
+      "referentie": "order_id",
+      "reference": "order_id",
     },
   },
 
@@ -54,8 +79,8 @@ export const IMPORT_CONFIGS = {
       { key: "transaction_id", label: "Transaction ID" },
       { key: "product", label: "Product Name", required: true },
       { key: "sku", label: "SKU" },
-      { key: "qty", label: "Quantity" },
-      { key: "gross_inc_vat", label: "Gross Price (inc VAT)" },
+      { key: "qty", label: "Quantity", required: true },
+      { key: "gross_inc_vat", label: "Gross Price (inc VAT)", required: true },
       { key: "net_ex_vat", label: "Net Price (ex VAT)" },
       { key: "vat", label: "VAT" },
       { key: "vat_rate", label: "VAT Rate" },
@@ -63,31 +88,51 @@ export const IMPORT_CONFIGS = {
       { key: "payment_method", label: "Payment Method" },
     ],
     dateField: "date",
+    requiredFields: ["date", "product", "qty", "gross_inc_vat"],
+    numericFields: ["qty", "gross_inc_vat", "net_ex_vat", "vat", "discount"],
     autoMap: {
-      "date": "date",
       "datum": "date",
+      "date": "date",
+      "transaction date": "date",
+      "transactiedatum": "date",
+      "transactie-id": "transaction_id",
       "transaction id": "transaction_id",
-      "id": "transaction_id",
-      "product": "product",
-      "item": "product",
-      "artikel": "product",
-      "name": "product",
+      "transaction-id": "transaction_id",
+      "beschrijving": "product",
       "description": "product",
+      "artikel": "product",
+      "product": "product",
+      "product name": "product",
+      "productnaam": "product",
+      "naam": "product",
+      "name": "product",
+      "item": "product",
       "sku": "sku",
+      "aantal": "qty",
       "qty": "qty",
       "quantity": "qty",
       "anzahl": "qty",
       "menge": "qty",
+      "prijs": "gross_inc_vat",
       "price": "gross_inc_vat",
       "gross": "gross_inc_vat",
+      "bruto": "gross_inc_vat",
       "brutto": "gross_inc_vat",
-      "net": "net_ex_vat",
+      "bedrag": "gross_inc_vat",
+      "amount": "gross_inc_vat",
+      "totaal": "gross_inc_vat",
+      "total": "gross_inc_vat",
       "netto": "net_ex_vat",
+      "net": "net_ex_vat",
+      "btw": "vat",
       "vat": "vat",
       "mwst": "vat",
+      "btw-tarief": "vat_rate",
       "vat rate": "vat_rate",
       "tax rate": "vat_rate",
+      "korting": "discount",
       "discount": "discount",
+      "betaalmethode": "payment_method",
       "payment method": "payment_method",
     },
   },
@@ -100,23 +145,36 @@ export const IMPORT_CONFIGS = {
       { key: "transaction_id", label: "Transaction ID" },
       { key: "status", label: "Status" },
       { key: "payment_method", label: "Payment Type" },
-      { key: "gross_inc_vat", label: "Amount" },
+      { key: "gross_inc_vat", label: "Amount", required: true },
       { key: "net_ex_vat", label: "Net Amount" },
       { key: "vat", label: "Fee / VAT" },
     ],
     dateField: "date",
+    requiredFields: ["date", "gross_inc_vat"],
+    numericFields: ["gross_inc_vat", "net_ex_vat", "vat"],
     autoMap: {
-      "date": "date",
       "datum": "date",
+      "date": "date",
+      "transaction date": "date",
+      "transactiedatum": "date",
+      "transactie-id": "transaction_id",
       "transaction id": "transaction_id",
-      "id": "transaction_id",
+      "transaction-id": "transaction_id",
       "status": "status",
+      "betaalmethode": "payment_method",
+      "payment method": "payment_method",
+      "betaaltype": "payment_method",
       "type": "payment_method",
       "payment type": "payment_method",
+      "bedrag": "gross_inc_vat",
       "amount": "gross_inc_vat",
       "total": "gross_inc_vat",
+      "bruto": "gross_inc_vat",
+      "netto": "net_ex_vat",
       "net amount": "net_ex_vat",
+      "btw": "vat",
       "fee": "vat",
+      "kosten": "vat",
     },
   },
 
@@ -133,34 +191,40 @@ export const IMPORT_CONFIGS = {
       { key: "balance", label: "Balance" },
     ],
     dateField: "date",
+    requiredFields: ["date", "counterparty"],
+    numericFields: ["amount_out", "amount_in", "amount", "balance"],
     autoMap: {
-      "date": "date",
       "datum": "date",
+      "date": "date",
+      "boekingsdatum": "date",
       "valutadatum": "date",
       "buchungsdatum": "date",
-      "counterparty": "counterparty",
+      "naam": "counterparty",
       "name": "counterparty",
-      "empfanger": "counterparty",
-      "begunstigde": "counterparty",
       "tegenpartij": "counterparty",
-      "description": "description",
+      "counterparty": "counterparty",
+      "begunstigde": "counterparty",
+      "empfanger": "counterparty",
       "omschrijving": "description",
-      "verwendungszweck": "description",
+      "description": "description",
+      "mededeling": "description",
       "reference": "description",
       "referentie": "description",
-      "debit": "amount_out",
+      "verwendungszweck": "description",
       "af": "amount_out",
+      "debet": "amount_out",
+      "debit": "amount_out",
       "bedrag af": "amount_out",
       "amount out": "amount_out",
-      "credit": "amount_in",
       "bij": "amount_in",
+      "credit": "amount_in",
       "bedrag bij": "amount_in",
       "amount in": "amount_in",
-      "amount": "amount",
       "bedrag": "amount",
+      "amount": "amount",
       "betrag": "amount",
-      "balance": "balance",
       "saldo": "balance",
+      "balance": "balance",
     },
   },
 
@@ -178,30 +242,37 @@ export const IMPORT_CONFIGS = {
       { key: "invoice_number", label: "Invoice Number" },
     ],
     dateField: "date",
+    requiredFields: ["date", "amount"],
+    numericFields: ["qty", "unit_price", "amount", "vat"],
     autoMap: {
-      "date": "date",
       "datum": "date",
-      "supplier": "supplier",
+      "date": "date",
       "leverancier": "supplier",
+      "supplier": "supplier",
+      "omschrijving": "description",
       "description": "description",
       "product": "description",
       "artikel": "description",
+      "aantal": "qty",
       "qty": "qty",
       "kg": "qty",
       "weight": "qty",
       "gewicht": "qty",
       "quantity": "qty",
+      "prijs per kg": "unit_price",
       "unit price": "unit_price",
       "price per kg": "unit_price",
       "preis": "unit_price",
+      "totaal": "amount",
       "total": "amount",
-      "amount": "amount",
       "bedrag": "amount",
+      "amount": "amount",
+      "btw": "vat",
       "vat": "vat",
       "mwst": "vat",
-      "invoice": "invoice_number",
-      "invoice number": "invoice_number",
       "factuurnummer": "invoice_number",
+      "invoice number": "invoice_number",
+      "invoice": "invoice_number",
     },
   },
 
@@ -218,22 +289,27 @@ export const IMPORT_CONFIGS = {
       { key: "tracking", label: "Tracking / Shipment ID" },
     ],
     dateField: "date",
+    requiredFields: ["date", "amount"],
+    numericFields: ["amount", "vat"],
     autoMap: {
-      "date": "date",
       "datum": "date",
+      "date": "date",
+      "vervoerder": "provider",
       "provider": "provider",
       "carrier": "provider",
-      "vervoerder": "provider",
-      "description": "description",
       "omschrijving": "description",
+      "description": "description",
+      "bedrag": "amount",
       "amount": "amount",
       "total": "amount",
-      "bedrag": "amount",
+      "totaal": "amount",
+      "btw": "vat",
       "vat": "vat",
       "mwst": "vat",
-      "invoice": "invoice_number",
+      "factuurnummer": "invoice_number",
       "invoice number": "invoice_number",
       "reference": "invoice_number",
+      "referentie": "invoice_number",
       "tracking": "tracking",
       "shipment id": "tracking",
     },
@@ -241,7 +317,8 @@ export const IMPORT_CONFIGS = {
 };
 
 /**
- * Auto-detect column mapping by matching file headers against autoMap dictionary
+ * Auto-detect column mapping by matching file headers against autoMap dictionary.
+ * Tries exact match first, then partial match.
  */
 export function autoDetectMapping(headers, importType) {
   const config = IMPORT_CONFIGS[importType];
@@ -249,9 +326,32 @@ export function autoDetectMapping(headers, importType) {
   const mapping = {};
   for (const header of headers) {
     const key = header.toLowerCase().trim();
-    if (config.autoMap[key]) {
-      mapping[config.autoMap[key]] = header;
+    const exact = config.autoMap[key];
+    if (exact && !mapping[exact]) {
+      mapping[exact] = header;
+      continue;
+    }
+    // Partial match: check if any autoMap key is contained in header or vice versa
+    for (const [mapKey, targetField] of Object.entries(config.autoMap)) {
+      if (mapping[targetField]) continue; // already mapped
+      if (key.includes(mapKey) || mapKey.includes(key)) {
+        mapping[targetField] = header;
+        break;
+      }
     }
   }
   return mapping;
+}
+
+/**
+ * Validate that required fields are mapped
+ */
+export function validateMapping(mapping, importType) {
+  const config = IMPORT_CONFIGS[importType];
+  if (!config) return [];
+  const missing = [];
+  for (const field of config.targetFields.filter(f => f.required)) {
+    if (!mapping[field.key]) missing.push(field.label);
+  }
+  return missing; // [] = valid
 }

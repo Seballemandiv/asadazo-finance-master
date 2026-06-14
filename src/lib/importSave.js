@@ -1,86 +1,113 @@
 import { base44 } from "@/api/base44Client";
+import { parseDate } from "./dateParser";
+import { parseNumber } from "./numberParser";
+import { IMPORT_CONFIGS } from "./importConfigs";
 
 /**
- * Map a raw row using the column mapping { targetField: sourceHeader }
+ * Apply column mapping to a raw row, parse dates and numbers.
+ * Returns a fully normalised object plus derived fields:
+ *   transaction_date, accounting_month, raw_original_date
  */
-export function applyMapping(row, mapping) {
+export function processRow(row, mapping, importType, fallbackMonth) {
+  const config = IMPORT_CONFIGS[importType] || {};
+  const numericFields = config.numericFields || [];
+  const dateField = config.dateField || "date";
+
   const out = {};
+
   for (const [target, source] of Object.entries(mapping)) {
-    if (source && row[source] !== undefined) {
-      out[target] = row[source];
+    if (!source) continue;
+    const raw = row[source];
+    if (raw === undefined || raw === null || raw === "") continue;
+
+    if (target === dateField) {
+      // Keep raw value + parse
+      out.raw_original_date = String(raw);
+      const parsed = parseDate(raw);
+      if (parsed) {
+        out.transaction_date = parsed.iso;
+        out.accounting_month = parsed.month;
+      } else {
+        out.accounting_month = fallbackMonth;
+      }
+    } else if (numericFields.includes(target)) {
+      const n = parseNumber(raw);
+      out[target] = n ?? 0;
+    } else {
+      out[target] = String(raw).trim();
     }
   }
+
+  // Fallback month if no date was parsed
+  if (!out.accounting_month) out.accounting_month = fallbackMonth;
+
+  // Keep month field in sync (used by older dashboard logic)
+  out.month = out.accounting_month;
+
   return out;
 }
 
 /**
- * Normalise a numeric string → number, return 0 if invalid
+ * Save rows to the appropriate entity in chunks to respect rate limits.
+ * Returns { rowCount, errorCount, months }
  */
-export function toNum(v) {
-  if (v === null || v === undefined || v === "") return 0;
-  const n = parseFloat(String(v).replace(",", ".").replace(/[^0-9.\-]/g, ""));
-  return isNaN(n) ? 0 : n;
-}
-
-/**
- * Normalise a date value → YYYY-MM-DD string
- */
-export function toDateStr(v) {
-  if (!v) return "";
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
-  const s = String(v).trim();
-  // Already ISO
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  // dd/mm/yyyy
-  const m = s.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
-  return s;
-}
-
-/**
- * Extract YYYY-MM from a date string
- */
-export function toMonth(v) {
-  const d = toDateStr(v);
-  return d ? d.slice(0, 7) : "";
-}
-
-/**
- * Save an import batch and its records.
- * importType: one of the enum values
- * rows: raw row objects
- * mapping: { targetField: sourceHeader }
- * filename, fileHash, month, saveRowFn
- *
- * saveRowFn(mappedRow, batchId) → promise, called for each row
- * Returns { batchId, rowCount, errorCount }
- */
-export async function saveImportBatch({ importType, rows, mapping, filename, fileHash, month, saveRowFn }) {
+export async function saveImportBatch({
+  importType, rows, mapping, filename, fileHash, fallbackMonth,
+}) {
   const batchId = crypto.randomUUID();
   const importDate = new Date().toISOString().slice(0, 10);
 
+  const entity = getEntityForType(importType);
+  const CHUNK = 5;
+
+  let rowCount = 0;
   let errorCount = 0;
-  const results = await Promise.allSettled(
-    rows.map(row => {
-      const mapped = applyMapping(row, mapping);
-      return saveRowFn(mapped, batchId);
-    })
-  );
-  errorCount = results.filter(r => r.status === "rejected").length;
-  const rowCount = results.filter(r => r.status === "fulfilled").length;
+  const monthsSet = new Set();
+
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    const results = await Promise.allSettled(
+      chunk.map(row => {
+        const processed = processRow(row, mapping, importType, fallbackMonth);
+        processed.import_batch_id = batchId;
+        if (processed.accounting_month) monthsSet.add(processed.accounting_month);
+        if (!entity) return Promise.reject(new Error("Unknown entity"));
+        return entity.create(processed);
+      })
+    );
+    rowCount += results.filter(r => r.status === "fulfilled").length;
+    errorCount += results.filter(r => r.status === "rejected").length;
+  }
+
+  const months = Array.from(monthsSet).sort();
 
   await base44.entities.ImportBatch.create({
-    id: batchId,
     import_type: importType,
     filename,
     file_hash: fileHash,
     import_date: importDate,
-    month,
+    month: months[0] || fallbackMonth,
     row_count: rowCount,
     error_count: errorCount,
     status: "imported",
     column_mapping: JSON.stringify(mapping),
+    notes: months.length > 1 ? `Months: ${months.join(", ")}` : undefined,
   });
 
-  return { batchId, rowCount, errorCount };
+  return { batchId, rowCount, errorCount, months };
+}
+
+function getEntityForType(type) {
+  switch (type) {
+    case "sumup_sales":
+    case "sumup_articles":
+    case "sumup_transactions":
+      return base44.entities.SalesRecord;
+    case "bank_transactions":
+    case "supplier_documents":
+    case "logistics_documents":
+      return base44.entities.BankTransaction;
+    default:
+      return null;
+  }
 }
