@@ -1,8 +1,8 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"];
+const COLORS = ["#611111", "#F4BE6E", "#450A0A", "#171111", "#C59A58"];
 
 export default function RevenueBreakdown({ metrics }) {
   const data = [
