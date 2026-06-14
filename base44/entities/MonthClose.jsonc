@@ -1,0 +1,67 @@
+{
+  "name": "MonthClose",
+  "type": "object",
+  "properties": {
+    "month": {
+      "type": "string",
+      "description": "YYYY-MM"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "in_review",
+        "closed"
+      ],
+      "default": "open"
+    },
+    "sales_imported": {
+      "type": "boolean",
+      "default": false
+    },
+    "articles_imported": {
+      "type": "boolean",
+      "default": false
+    },
+    "transactions_imported": {
+      "type": "boolean",
+      "default": false
+    },
+    "bank_imported": {
+      "type": "boolean",
+      "default": false
+    },
+    "product_mappings_ok": {
+      "type": "boolean",
+      "default": false
+    },
+    "bank_mappings_ok": {
+      "type": "boolean",
+      "default": false
+    },
+    "blocked_funds_reviewed": {
+      "type": "boolean",
+      "default": false
+    },
+    "sumup_reconciled": {
+      "type": "boolean",
+      "default": false
+    },
+    "vat_checked": {
+      "type": "boolean",
+      "default": false
+    },
+    "override_note": {
+      "type": "string"
+    },
+    "closed_at": {
+      "type": "string"
+    },
+    "closed_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "month"
+  ]
+}

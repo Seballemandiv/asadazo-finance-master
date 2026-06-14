@@ -15,6 +15,7 @@ import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import Dashboard from '@/pages/Dashboard';
+import ImportCenter from '@/pages/ImportCenter';
 import ImportSales from '@/pages/ImportSales';
 import ImportBank from '@/pages/ImportBank';
 import ReviewSales from '@/pages/ReviewSales';
@@ -51,6 +52,7 @@ const AuthenticatedApp = () => {
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/import" element={<ImportCenter />} />
           <Route path="/import-sales" element={<ImportSales />} />
           <Route path="/import-bank" element={<ImportBank />} />
           <Route path="/review-sales" element={<ReviewSales />} />

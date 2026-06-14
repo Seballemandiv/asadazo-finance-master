@@ -5,8 +5,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard },
-  { label: "Import Sales", path: "/import-sales", icon: Upload },
-  { label: "Import Bank", path: "/import-bank", icon: Upload },
+  { label: "Import Center", path: "/import", icon: Upload },
   { label: "Review Sales", path: "/review-sales", icon: FileText },
   { label: "Review Bank", path: "/review-bank", icon: FileText },
   { label: "Mappings", path: "/mappings", icon: Table2 },

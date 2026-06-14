@@ -1,0 +1,82 @@
+{
+  "name": "BankRule",
+  "type": "object",
+  "properties": {
+    "keyword": {
+      "type": "string",
+      "description": "Counterparty/description contains this text (case-insensitive)"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Incoming payment",
+        "Refund received",
+        "SumUp payout",
+        "Meat purchase",
+        "Transport / logistics",
+        "Vehicle rental",
+        "Blocked funds",
+        "Release of blocked funds",
+        "Event cost",
+        "Operating expense",
+        "Owner injection",
+        "Tax / VAT",
+        "Ignore",
+        "Other"
+      ]
+    },
+    "business_area": {
+      "type": "string",
+      "enum": [
+        "Online Shop",
+        "Event",
+        "Wholesale",
+        "General",
+        "Inventory / Stock",
+        "Transport / Logistics"
+      ]
+    },
+    "payment_method": {
+      "type": "string",
+      "enum": [
+        "Bank transfer",
+        "Direct debit",
+        "Card",
+        "SumUp",
+        "Cash",
+        "Other"
+      ]
+    },
+    "cost_type": {
+      "type": "string",
+      "enum": [
+        "Revenue",
+        "Refund",
+        "COGS",
+        "Inventory cash movement",
+        "Shipping cost",
+        "Event cost",
+        "Operating expense",
+        "Tax",
+        "Ignore"
+      ]
+    },
+    "vat_rate": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "disabled"
+      ],
+      "default": "active"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "keyword"
+  ]
+}
