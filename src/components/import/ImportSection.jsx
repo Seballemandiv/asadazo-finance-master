@@ -87,9 +87,15 @@ export default function ImportSection({ importType, onImportDone }) {
 
       let errorCount = 0;
       let rowCount = 0;
-      const results = await Promise.allSettled(rows.map(row => saveRow(row, batchId)));
-      rowCount = results.filter(r => r.status === "fulfilled").length;
-      errorCount = results.filter(r => r.status === "rejected").length;
+
+      // Save in batches of 5 to avoid rate limiting
+      const CHUNK = 5;
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const chunk = rows.slice(i, i + CHUNK);
+        const results = await Promise.allSettled(chunk.map(row => saveRow(row, batchId)));
+        rowCount += results.filter(r => r.status === "fulfilled").length;
+        errorCount += results.filter(r => r.status === "rejected").length;
+      }
 
       await base44.entities.ImportBatch.create({
         import_type: importType,
