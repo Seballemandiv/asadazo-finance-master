@@ -1,0 +1,56 @@
+{
+  "name": "ArticleRecord",
+  "type": "object",
+  "properties": {
+    "import_batch_id": {
+      "type": "string"
+    },
+    "accounting_month": {
+      "type": "string",
+      "description": "YYYY-MM"
+    },
+    "month": {
+      "type": "string"
+    },
+    "product_name": {
+      "type": "string"
+    },
+    "variant_name": {
+      "type": "string"
+    },
+    "source_category": {
+      "type": "string"
+    },
+    "sku": {
+      "type": "string"
+    },
+    "quantity": {
+      "type": "number",
+      "default": 0
+    },
+    "currency": {
+      "type": "string",
+      "default": "EUR"
+    },
+    "gross_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "article_cost": {
+      "type": "number"
+    },
+    "article_profit": {
+      "type": "number"
+    },
+    "article_margin": {
+      "type": "number"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "product_name"
+  ]
+}

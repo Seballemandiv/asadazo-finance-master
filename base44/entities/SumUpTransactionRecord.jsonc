@@ -1,0 +1,73 @@
+{
+  "name": "SumUpTransactionRecord",
+  "type": "object",
+  "properties": {
+    "import_batch_id": {
+      "type": "string"
+    },
+    "accounting_month": {
+      "type": "string",
+      "description": "YYYY-MM"
+    },
+    "month": {
+      "type": "string"
+    },
+    "transaction_date": {
+      "type": "string"
+    },
+    "transaction_id": {
+      "type": "string"
+    },
+    "transaction_type": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "payment_method": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "total_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "net_sales": {
+      "type": "number",
+      "default": 0
+    },
+    "tax_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "transaction_fee": {
+      "type": "number",
+      "default": 0
+    },
+    "payout_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "payout_date": {
+      "type": "string"
+    },
+    "payout_number": {
+      "type": "string"
+    },
+    "reference": {
+      "type": "string"
+    },
+    "account_email": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "transaction_id"
+  ]
+}

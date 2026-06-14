@@ -6,7 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Trash2, RefreshCw } from "lucide-react";
 import { IMPORT_CONFIGS } from "@/lib/importConfigs";
 
-const BANK_TYPES = new Set(["sumup_transactions", "bank_transactions", "supplier_documents", "logistics_documents"]);
+// Map import type → entity to delete rows from
+const ENTITY_FOR_TYPE = {
+  sumup_sales: "SalesRecord",
+  sumup_articles: "ArticleRecord",
+  sumup_transactions: "SumUpTransactionRecord",
+  bank_transactions: "BankTransaction",
+};
 
 export default function ImportHistoryTable({ refreshKey, importType }) {
   const [batches, setBatches] = useState([]);
@@ -22,33 +28,29 @@ export default function ImportHistoryTable({ refreshKey, importType }) {
 
   useEffect(() => { load(); }, [refreshKey]);
 
-  // Filter to only this tab's import type
   const filtered = useMemo(() =>
     importType ? batches.filter(b => b.import_type === importType) : batches,
     [batches, importType]
   );
 
-  // Per-tab counters
   const counters = useMemo(() => {
-    const active = filtered.filter(b => b.status === "imported");
+    const active   = filtered.filter(b => b.status === "imported");
     const reverted = filtered.filter(b => b.status === "reverted");
-    const failed = filtered.filter(b => b.status === "failed_validation");
-    const activeRows = active.reduce((sum, b) => sum + (b.row_count || 0), 0);
+    const failed   = filtered.filter(b => ["failed_validation", "failed_save"].includes(b.status));
+    const activeRows = active.reduce((sum, b) => sum + (b.rows_saved || b.row_count || 0), 0);
     return { active: active.length, reverted: reverted.length, failed: failed.length, activeRows };
   }, [filtered]);
 
   const handleRevert = async (batch) => {
-    if (!confirm(`Revert "${batch.filename}" (${batch.row_count} rows)? All rows from this batch will be hard-deleted.`)) return;
+    if (!confirm(`Revert "${batch.source_file_name || batch.filename}" (${batch.rows_saved || batch.row_count} rows)? All rows from this batch will be deleted.`)) return;
     setReverting(batch.id);
 
-    if (batch.status !== "failed_validation") {
-      const isBankType = BANK_TYPES.has(batch.import_type);
-      if (isBankType) {
-        const recs = await base44.entities.BankTransaction.filter({ import_batch_id: batch.id });
-        for (const r of recs) await base44.entities.BankTransaction.delete(r.id);
-      } else {
-        const recs = await base44.entities.SalesRecord.filter({ import_batch_id: batch.id });
-        for (const r of recs) await base44.entities.SalesRecord.delete(r.id);
+    if (batch.status === "imported") {
+      const entityName = ENTITY_FOR_TYPE[batch.import_type];
+      if (entityName && base44.entities[entityName]) {
+        const entity = base44.entities[entityName];
+        const recs = await entity.filter({ import_batch_id: batch.id });
+        for (const r of recs) await entity.delete(r.id);
       }
     }
 
@@ -58,6 +60,7 @@ export default function ImportHistoryTable({ refreshKey, importType }) {
   };
 
   const getMonths = (batch) => {
+    if (batch.accounting_months_detected) return batch.accounting_months_detected;
     if (batch.notes?.startsWith("Months:")) return batch.notes.replace("Months:", "").trim();
     return batch.month || "—";
   };
@@ -68,6 +71,8 @@ export default function ImportHistoryTable({ refreshKey, importType }) {
         return <Badge className="bg-green-100 text-green-800 border-0 text-xs">Imported</Badge>;
       case "failed_validation":
         return <Badge className="bg-red-100 text-red-800 border-0 text-xs">Failed</Badge>;
+      case "failed_save":
+        return <Badge className="bg-red-100 text-red-800 border-0 text-xs">Save Failed</Badge>;
       case "reverted":
         return <Badge className="bg-gray-100 text-gray-600 border-0 text-xs">Reverted</Badge>;
       default:
@@ -107,7 +112,7 @@ export default function ImportHistoryTable({ refreshKey, importType }) {
             <table className="w-full text-xs">
               <thead className="bg-muted text-muted-foreground">
                 <tr>
-                  {["File Name", "Accounting Months", "Rows", "Import Date", "Status", ""].map(h => (
+                  {["File Name", "Months", "Rows", "Date Range", "Import Date", "Status", ""].map(h => (
                     <th key={h} className="px-3 py-2 text-left font-medium whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -115,10 +120,15 @@ export default function ImportHistoryTable({ refreshKey, importType }) {
               <tbody>
                 {filtered.map(b => (
                   <tr key={b.id} className={`border-t hover:bg-muted/20 ${b.status === "reverted" ? "opacity-50" : ""}`}>
-                    <td className="px-3 py-2 max-w-[200px] truncate font-medium" title={b.filename}>{b.filename}</td>
+                    <td className="px-3 py-2 max-w-[180px] truncate font-medium" title={b.source_file_name || b.filename}>
+                      {b.source_file_name || b.filename || "—"}
+                    </td>
                     <td className="px-3 py-2 font-mono text-xs">{getMonths(b)}</td>
-                    <td className="px-3 py-2 tabular-nums">{b.row_count ?? "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">{b.import_date}</td>
+                    <td className="px-3 py-2 tabular-nums">{b.rows_saved ?? b.row_count ?? "—"}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap max-w-[140px] truncate">
+                      {b.date_range_detected || "—"}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">{b.import_date || b.imported_at?.slice(0, 10) || "—"}</td>
                     <td className="px-3 py-2">{statusBadge(b.status)}</td>
                     <td className="px-3 py-2">
                       {b.status === "imported" && (

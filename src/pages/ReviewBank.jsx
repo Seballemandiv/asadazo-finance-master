@@ -21,8 +21,13 @@ export default function ReviewBank() {
       base44.entities.ImportBatch.filter({ status: "imported" }),
       base44.entities.BankTransaction.list("-date", 5000),
     ]);
-    const activeBatchIds = new Set(activeBatches.map(b => b.id));
-    const activeRecs = recs.filter(r => !r.import_batch_id || activeBatchIds.has(r.import_batch_id));
+    const activeBatchIds = new Set(
+      activeBatches.filter(b => b.import_type === "bank_transactions").map(b => b.id)
+    );
+    const activeRecs = recs.filter(r =>
+      r.is_active !== false &&
+      (!r.import_batch_id || activeBatchIds.has(r.import_batch_id))
+    );
     setRecords(activeRecs);
     setLoading(false);
   };
@@ -30,15 +35,19 @@ export default function ReviewBank() {
   useEffect(() => { load(); }, []);
 
   const availableMonths = useMemo(() => {
-    const months = new Set(records.map(r => r.month).filter(Boolean));
+    const months = new Set(records.map(r => r.accounting_month || r.month).filter(Boolean));
     return Array.from(months).sort().reverse();
   }, [records]);
 
   const filtered = useMemo(() => {
     return records.filter(r => {
-      const monthOk = selectedMonth === "all" || r.month === selectedMonth;
+      const recMonth = r.accounting_month || r.month;
+      const monthOk = selectedMonth === "all" || recMonth === selectedMonth;
       const statusOk = statusFilter === "all" || r.review_status === statusFilter;
-      const searchOk = !search || r.reference?.toLowerCase().includes(search.toLowerCase()) || r.payment_ref?.toLowerCase().includes(search.toLowerCase());
+      const searchOk = !search ||
+        r.reference?.toLowerCase().includes(search.toLowerCase()) ||
+        r.payment_ref?.toLowerCase().includes(search.toLowerCase()) ||
+        r.counterparty?.toLowerCase().includes(search.toLowerCase());
       return monthOk && statusOk && searchOk;
     });
   }, [records, selectedMonth, statusFilter, search]);

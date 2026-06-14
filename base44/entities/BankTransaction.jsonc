@@ -2,10 +2,17 @@
   "name": "BankTransaction",
   "type": "object",
   "properties": {
-    "date": {
+    "import_batch_id": {
       "type": "string"
     },
+    "accounting_month": {
+      "type": "string",
+      "description": "YYYY-MM"
+    },
     "month": {
+      "type": "string"
+    },
+    "date": {
       "type": "string"
     },
     "code": {
@@ -18,6 +25,9 @@
       "type": "string"
     },
     "payment_ref": {
+      "type": "string"
+    },
+    "counterparty": {
       "type": "string"
     },
     "status": {
@@ -90,9 +100,9 @@
       "type": "number",
       "default": 0
     },
-    "import_batch_id": {
-      "type": "string",
-      "description": "Reference to the ImportBatch that created this row"
+    "is_active": {
+      "type": "boolean",
+      "default": true
     }
   },
   "required": []

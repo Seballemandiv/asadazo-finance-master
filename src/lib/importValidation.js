@@ -4,22 +4,28 @@ import { IMPORT_CONFIGS } from "./importConfigs";
 
 /**
  * Validate every row before saving.
- * Returns { valid: boolean, errors: RowError[], summary: { total, valid, errorCount } }
- *
- * RowError: { rowNumber, column, rawValue, parsedValue, errorType, message, suggestedFix }
+ * Returns {
+ *   valid: boolean,
+ *   errors: RowError[],
+ *   warnings: Warning[],
+ *   moneyOk: boolean,
+ *   summary: { total, valid, errorCount, rowsWithErrors }
+ * }
  */
 export function validateAllRows(rows, mapping, importType, fallbackMonth) {
   const config = IMPORT_CONFIGS[importType] || {};
   const numericFields = config.numericFields || [];
-  const dateField = config.dateField || "date";
+  const dateField = config.dateField || null;
   const requiredEntityFields = config.requiredFields || [];
+  const noDateRequired = config.noDateRequired === true;
 
   const errors = [];
+  const warnings = [];
 
-  const warnings = []; // non-blocking notices
-
-  // Check 1: required fields must be mapped
+  // ── Check 1: required fields must be mapped ──────────────────────────
   for (const field of config.targetFields?.filter(f => f.required) || []) {
+    // Skip date if this import type has no date requirement
+    if (noDateRequired && field.key === dateField) continue;
     if (!mapping[field.key]) {
       errors.push({
         rowNumber: 0,
@@ -28,42 +34,53 @@ export function validateAllRows(rows, mapping, importType, fallbackMonth) {
         parsedValue: null,
         errorType: "MAPPING_MISSING",
         message: `Required column not mapped: "${field.label}"`,
-        suggestedFix: `Map a column to "${field.label}" in the column mapper above.`,
+        suggestedFix: `Map a file column to "${field.label}" in the column mapper above.`,
       });
     }
   }
 
-  // Optional bank counterparty — warn only, don't block
+  // Bank counterparty — warn only, never block
   if (importType === "bank_transactions" && !mapping["counterparty"]) {
     warnings.push({
       rowNumber: 0,
       column: "counterparty",
       errorType: "COUNTERPARTY_MISSING",
-      message: "Counterparty / Name not mapped — rows will be sent to Review Bank with 'Unknown counterparty'.",
+      message: "Counterparty / Name not mapped — rows will be tagged 'To review' with reference from Description/Referentie.",
     });
   }
 
-  // If hard mapping errors exist, skip per-row validation (can't proceed)
+  // Article report has no date — inform user
+  if (noDateRequired && !mapping[dateField]) {
+    warnings.push({
+      rowNumber: 0,
+      column: "transaction_date",
+      errorType: "DATE_NOT_REQUIRED",
+      message: `Article Report has no date column — accounting month will use fallback month: ${fallbackMonth || "(not set)"}`,
+    });
+  }
+
+  // Hard mapping errors → skip per-row validation
   if (errors.length > 0) {
     return {
       valid: false,
       errors,
       warnings,
+      moneyOk: true,
       summary: { total: rows.length, valid: 0, errorCount: errors.length, rowsWithErrors: 0 },
     };
   }
 
-  const dateSource = mapping[dateField];
-  const dateIsRequired = requiredEntityFields.includes(dateField);
+  const dateSource = dateField ? mapping[dateField] : null;
+  const dateIsRequired = !noDateRequired && requiredEntityFields.includes(dateField);
 
-  // Check 2: per-row validation
   const rowErrorCounts = new Set();
 
+  // ── Check 2: per-row validation ─────────────────────────────────────
   rows.forEach((row, idx) => {
     const rowNum = idx + 1;
     let rowHasError = false;
 
-    // Validate date field only if it is mapped OR required
+    // Date validation
     if (dateSource) {
       const rawDate = row[dateSource];
       if (rawDate === undefined || rawDate === null || String(rawDate).trim() === "") {
@@ -79,7 +96,6 @@ export function validateAllRows(rows, mapping, importType, fallbackMonth) {
           });
           rowHasError = true;
         }
-        // If not required, silently skip — fallback month will be used
       } else {
         const parsed = parseDate(rawDate);
         if (!parsed) {
@@ -89,23 +105,20 @@ export function validateAllRows(rows, mapping, importType, fallbackMonth) {
             rawValue: rawDate,
             parsedValue: null,
             errorType: "DATE_PARSE_FAILED",
-            message: `Could not parse date value: "${rawDate}"`,
-            suggestedFix: "Expected formats: DD-MM-YYYY, YYYY-MM-DD, or Excel serial number.",
+            message: `Could not parse date: "${rawDate}"`,
+            suggestedFix: "Expected: DD-MM-YYYY, YYYY-MM-DD, Excel serial, or Dutch like '3 jan 2026 17:59'.",
           });
           rowHasError = true;
         }
       }
-    } else if (dateIsRequired) {
-      // Date is required but not mapped — already caught in mapping check above
     }
 
-    // Validate numeric fields
+    // Numeric field validation + 100x suspicious money check
     for (const target of numericFields) {
       const source = mapping[target];
       if (!source) continue;
       const raw = row[source];
       if (raw === undefined || raw === null || String(raw).trim() === "") {
-        // Only error if it was a strictly required field
         if (requiredEntityFields.includes(target)) {
           errors.push({
             rowNumber: rowNum,
@@ -128,12 +141,12 @@ export function validateAllRows(rows, mapping, importType, fallbackMonth) {
           rawValue: raw,
           parsedValue: null,
           errorType: "AMOUNT_PARSE_FAILED",
-          message: `Could not parse amount value: "${raw}"`,
-          suggestedFix: "Expected numeric format like 1234.56 or European 1.234,56.",
+          message: `Could not parse amount: "${raw}"`,
+          suggestedFix: "Expected numeric format like 1234.56 or European 1.234,56 or 12,80.",
         });
         rowHasError = true;
       } else {
-        // Suspicious 100x parse check: if raw has comma and result ≥ 100x the EU interpretation
+        // Suspicious 100x check
         const rawStr = String(raw).trim().replace(/[€$£¥\u00a0\s]/g, "");
         if (rawStr.includes(",")) {
           const euStr = rawStr.replace(/\./g, "").replace(",", ".");
@@ -145,8 +158,8 @@ export function validateAllRows(rows, mapping, importType, fallbackMonth) {
               rawValue: raw,
               parsedValue: n,
               errorType: "MONEY_PARSE_SUSPICIOUS",
-              message: `Possible decimal parsing error: raw "${raw}" parsed as ${n}, expected ${euVal}`,
-              suggestedFix: "Check that the file delimiter is correct (semicolon vs comma). European decimals use comma.",
+              message: `Decimal parsing error: "${raw}" parsed as ${n}, expected ~${euVal}`,
+              suggestedFix: "The file delimiter may be wrong. European files should use semicolon (;). Comma is the decimal separator.",
             });
             rowHasError = true;
           }
@@ -154,37 +167,42 @@ export function validateAllRows(rows, mapping, importType, fallbackMonth) {
       }
     }
 
-    // Validate other required fields (product name, counterparty, etc.)
+    // Other required text fields (not date, not numeric)
     for (const reqKey of requiredEntityFields) {
-      if (reqKey === dateField || numericFields.includes(reqKey)) continue; // already handled
+      if (dateField && reqKey === dateField) continue;
+      if (numericFields.includes(reqKey)) continue;
       const source = mapping[reqKey];
       if (!source) continue;
       const raw = row[source];
       if (raw === undefined || raw === null || String(raw).trim() === "") {
         const fieldLabel = config.targetFields?.find(f => f.key === reqKey)?.label || reqKey;
-        errors.push({
-          rowNumber: rowNum,
-          column: source,
-          rawValue: raw ?? "",
-          parsedValue: null,
-          errorType: "REQUIRED_FIELD_EMPTY",
-          message: `Required field "${fieldLabel}" is empty`,
-          suggestedFix: `Ensure every row has a value in column "${source}".`,
-        });
-        rowHasError = true;
+        // For product_name: fill with fallback instead of hard blocking
+        if (reqKey === "product_name" || reqKey === "product") {
+          // non-blocking: will be filled with "Unknown product - needs review" in processRow
+        } else {
+          errors.push({
+            rowNumber: rowNum,
+            column: source,
+            rawValue: raw ?? "",
+            parsedValue: null,
+            errorType: "REQUIRED_FIELD_EMPTY",
+            message: `Required field "${fieldLabel}" is empty`,
+            suggestedFix: `Ensure every row has a value in column "${source}".`,
+          });
+          rowHasError = true;
+        }
       }
     }
 
     if (rowHasError) rowErrorCounts.add(rowNum);
   });
 
-  const errorCount = errors.length;
   const rowsWithErrors = rowErrorCounts.size;
-  const valid = errorCount === 0;
+  const valid = errors.length === 0;
 
-  // Check money parsing sanity on numeric columns
+  // ── Money sanity check across all numeric columns ─────────────────────
   let moneyOk = true;
-  for (const target of config.numericFields || []) {
+  for (const target of numericFields) {
     const source = mapping[target];
     if (!source) continue;
     const rawVals = rows.map(r => r[source]);
@@ -203,7 +221,7 @@ export function validateAllRows(rows, mapping, importType, fallbackMonth) {
     summary: {
       total: rows.length,
       valid: rows.length - rowsWithErrors,
-      errorCount: errorCount + (moneyOk ? 0 : 1),
+      errorCount: errors.length + (moneyOk ? 0 : 1),
       rowsWithErrors,
     },
   };
@@ -213,16 +231,11 @@ export function validateAllRows(rows, mapping, importType, fallbackMonth) {
  * Export errors as CSV string
  */
 export function errorsToCSV(errors, filename, importType) {
-  const header = ["File","Import Type","Row Number","Column","Raw Value","Error Type","Message","Suggested Fix"];
+  const header = ["File", "Import Type", "Row", "Column", "Raw Value", "Error Type", "Message", "Suggested Fix"];
   const rows = errors.map(e => [
-    filename,
-    importType,
+    filename, importType,
     e.rowNumber === 0 ? "Mapping" : e.rowNumber,
-    e.column,
-    e.rawValue,
-    e.errorType,
-    e.message,
-    e.suggestedFix,
+    e.column, e.rawValue, e.errorType, e.message, e.suggestedFix,
   ].map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
   return [header.join(","), ...rows].join("\n");
 }

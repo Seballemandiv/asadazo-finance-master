@@ -3,46 +3,85 @@ import { parseDate } from "./dateParser";
 import { parseNumber } from "./numberParser";
 import { IMPORT_CONFIGS } from "./importConfigs";
 
-// Fields that are valid on SalesRecord entity
-const SALES_RECORD_FIELDS = new Set([
-  "date", "month", "type", "transaction_id", "payment_method", "qty",
-  "product", "category", "sku", "currency", "gross_inc_vat", "net_ex_vat",
-  "vat", "vat_rate", "discount", "mapping_status", "revenue_type", "channel",
-  "cut", "kg_per_unit", "cost_per_kg", "meat_cogs", "product_revenue_ex_vat",
-  "shipping_revenue_ex_vat", "event_revenue_ex_vat", "other_revenue_ex_vat",
-  "review_flag", "order_flag", "import_batch_id",
-]);
-
-// Fields that are valid on BankTransaction entity
-const BANK_TRANSACTION_FIELDS = new Set([
-  "date", "month", "code", "type", "reference", "payment_ref", "status",
-  "amount_out", "amount_in", "fees", "balance", "category", "cost_type",
-  "channel", "review_status", "counted_expense", "shipping_cost",
-  "operating_expenses", "event_cost", "meat_purchase", "import_batch_id",
-]);
+/**
+ * Allowed fields per entity — prevents unknown field errors from the SDK.
+ */
+const ALLOWED_FIELDS = {
+  SalesRecord: new Set([
+    "import_batch_id", "accounting_month", "month", "transaction_date", "date",
+    "transaction_id", "transaction_type", "type", "payment_method",
+    "quantity", "qty", "product_name", "product", "description",
+    "source_category", "category", "sku", "currency",
+    "price_before_discount", "discount",
+    "gross_amount_inc_vat", "gross_inc_vat",
+    "net_amount_ex_vat", "net_ex_vat",
+    "vat_amount", "vat", "vat_rate", "account",
+    "mapping_status", "revenue_type", "channel",
+    "cut", "kg_per_unit", "cost_per_kg", "meat_cogs",
+    "product_revenue_ex_vat", "shipping_revenue_ex_vat",
+    "event_revenue_ex_vat", "other_revenue_ex_vat",
+    "review_flag", "order_flag", "is_active",
+  ]),
+  ArticleRecord: new Set([
+    "import_batch_id", "accounting_month", "month",
+    "product_name", "variant_name", "source_category", "sku",
+    "quantity", "currency", "gross_amount",
+    "article_cost", "article_profit", "article_margin",
+    "is_active",
+  ]),
+  SumUpTransactionRecord: new Set([
+    "import_batch_id", "accounting_month", "month",
+    "transaction_date", "transaction_id", "transaction_type", "status",
+    "payment_method", "description",
+    "total_amount", "net_sales", "tax_amount",
+    "transaction_fee", "payout_amount", "payout_date", "payout_number",
+    "reference", "account_email", "is_active",
+  ]),
+  BankTransaction: new Set([
+    "import_batch_id", "accounting_month", "month", "date",
+    "code", "type", "reference", "payment_ref", "counterparty", "status",
+    "amount_out", "amount_in", "fees", "balance",
+    "category", "cost_type", "channel", "review_status",
+    "counted_expense", "shipping_cost", "operating_expenses",
+    "event_cost", "meat_purchase", "is_active",
+  ]),
+};
 
 /**
- * Apply column mapping to a raw row, parse dates and numbers.
- * Returns a payload ready to save to the target entity.
+ * Map import type → entity name and Base44 entity reference.
+ */
+function getEntityInfo(importType) {
+  const config = IMPORT_CONFIGS[importType];
+  if (!config) return null;
+  const entityName = config.entityName;
+  const entity = base44.entities[entityName];
+  if (!entity) return null;
+  return { entityName, entity };
+}
+
+/**
+ * Process a single raw row into an entity payload.
+ * Returns payload object ready to save.
  */
 export function processRow(row, mapping, importType, fallbackMonth) {
   const config = IMPORT_CONFIGS[importType] || {};
   const numericFields = config.numericFields || [];
-  const dateField = config.dateField || "date";
-  const isSales = ["sumup_sales", "sumup_articles"].includes(importType);
-  const allowedFields = isSales ? SALES_RECORD_FIELDS : BANK_TRANSACTION_FIELDS;
+  const dateField = config.dateField || null;
+  const entityName = config.entityName || "SalesRecord";
+  const allowedFields = ALLOWED_FIELDS[entityName] || new Set();
 
-  const raw = {}; // intermediate: target_key → parsed value
+  const raw = {};
 
   for (const [target, source] of Object.entries(mapping)) {
     if (!source) continue;
     const rawVal = row[source];
     if (rawVal === undefined || rawVal === null || rawVal === "") continue;
 
-    if (target === dateField) {
+    if (dateField && target === dateField) {
       const parsed = parseDate(rawVal);
       if (parsed) {
         raw.__date_iso = parsed.iso;
+        raw.__date_plain = parsed.date;
         raw.__month = parsed.month;
       } else {
         raw.__month = fallbackMonth;
@@ -55,128 +94,160 @@ export function processRow(row, mapping, importType, fallbackMonth) {
     }
   }
 
-  // Build entity payload — only include fields that exist in the schema
+  // Build entity payload — only include allowed fields
   const payload = {};
   for (const [key, val] of Object.entries(raw)) {
-    if (key.startsWith("__")) continue; // internal keys
+    if (key.startsWith("__")) continue;
     if (allowedFields.has(key)) {
       payload[key] = val;
     }
-    // silently drop unknown fields
   }
 
-  // Map date → entity "date" field (string for bank, datetime for sales)
-  if (raw.__date_iso) {
-    payload.date = raw.__date_iso;
-  }
+  const month = raw.__month || fallbackMonth || "";
 
-  // Map accounting month → entity "month" field
-  const month = raw.__month || fallbackMonth;
-  payload.month = month;
-
-  // Guarantee required `product` field for SalesRecord rows
-  if (isSales) {
+  // ── SalesRecord specific ────────────────────────────────────────────────
+  if (entityName === "SalesRecord") {
+    if (raw.__date_iso) {
+      payload.transaction_date = raw.__date_iso;
+      payload.date = raw.__date_iso;
+    }
+    payload.accounting_month = month;
+    payload.month = month;
+    // Sync dual field names
+    if (payload.product_name) payload.product = payload.product_name;
     if (!payload.product || String(payload.product).trim() === "") {
       payload.product = "Unknown product - needs review";
+      payload.product_name = "Unknown product - needs review";
       payload.mapping_status = "To review";
     }
+    if (payload.gross_amount_inc_vat !== undefined) payload.gross_inc_vat = payload.gross_amount_inc_vat;
+    if (payload.net_amount_ex_vat !== undefined) payload.net_ex_vat = payload.net_amount_ex_vat;
+    if (payload.vat_amount !== undefined) payload.vat = payload.vat_amount;
+    if (payload.quantity !== undefined) payload.qty = payload.quantity;
+    if (!payload.mapping_status) payload.mapping_status = "To review";
+    payload.is_active = true;
   }
 
-  // Set default mapping_status for sales records
-  if (isSales && !payload.mapping_status) {
-    payload.mapping_status = "To review";
+  // ── ArticleRecord specific ──────────────────────────────────────────────
+  if (entityName === "ArticleRecord") {
+    // No date required; use fallback month
+    payload.accounting_month = month;
+    payload.month = month;
+    payload.is_active = true;
   }
 
-  // For bank: build reference from counterparty → fallback to description → fallback to "Unknown"
-  if (!isSales) {
+  // ── SumUpTransactionRecord specific ────────────────────────────────────
+  if (entityName === "SumUpTransactionRecord") {
+    if (raw.__date_iso) {
+      payload.transaction_date = raw.__date_iso;
+    }
+    payload.accounting_month = month;
+    payload.month = month;
+    payload.is_active = true;
+  }
+
+  // ── BankTransaction specific ────────────────────────────────────────────
+  if (entityName === "BankTransaction") {
+    if (raw.__date_iso) payload.date = raw.__date_iso;
+    payload.accounting_month = month;
+    payload.month = month;
+
+    // Build reference: counterparty name → fallback to description → "Unknown counterparty"
     const cpVal = mapping.counterparty ? String(row[mapping.counterparty] ?? "").trim() : "";
     const refVal = mapping.description ? String(row[mapping.description] ?? "").trim() : "";
-
-    // reference = counterparty name OR description/referentie OR "Unknown counterparty"
     payload.reference = cpVal || refVal || "Unknown counterparty";
-
-    // payment_ref = description/referentie
+    if (cpVal) payload.counterparty = cpVal;
     if (refVal) payload.payment_ref = refVal;
 
-    // If no counterparty mapped or empty, flag for review
-    if (!cpVal) {
-      payload.review_status = "To review";
-    }
-  }
+    // If no counterparty, flag for review
+    if (!cpVal) payload.review_status = "To review";
 
-  // For bank: amount_out column → always store as negative amount_out (absolute value stored, sign is implicit)
-  if (!isSales && mapping.amount_out) {
-    const n = parseNumber(row[mapping.amount_out]);
-    if (n !== null) {
-      payload.amount_out = Math.abs(n); // debit: store as positive amount_out
-      if (!payload.amount_in) payload.amount_in = 0;
-    }
-  }
-
-  // For bank: amount_in column → always positive
-  if (!isSales && mapping.amount_in) {
-    const n = parseNumber(row[mapping.amount_in]);
-    if (n !== null) {
-      payload.amount_in = Math.abs(n);
-      if (!payload.amount_out) payload.amount_out = 0;
-    }
-  }
-
-  // For bank: single amount column → split by sign
-  if (!isSales && mapping.amount) {
-    const n = parseNumber(row[mapping.amount]);
-    if (n !== null && !payload.amount_in && !payload.amount_out) {
-      if (n >= 0) {
-        payload.amount_in = n;
-        payload.amount_out = 0;
-      } else {
+    // Amount out (debit) — always positive magnitude
+    if (mapping.amount_out) {
+      const n = parseNumber(row[mapping.amount_out]);
+      if (n !== null) {
         payload.amount_out = Math.abs(n);
-        payload.amount_in = 0;
+        if (payload.amount_in === undefined) payload.amount_in = 0;
       }
     }
+    // Amount in (credit) — always positive magnitude
+    if (mapping.amount_in) {
+      const n = parseNumber(row[mapping.amount_in]);
+      if (n !== null) {
+        payload.amount_in = Math.abs(n);
+        if (payload.amount_out === undefined) payload.amount_out = 0;
+      }
+    }
+    // Single signed amount column
+    if (mapping.amount && !mapping.amount_out && !mapping.amount_in) {
+      const n = parseNumber(row[mapping.amount]);
+      if (n !== null) {
+        if (n >= 0) { payload.amount_in = n; payload.amount_out = 0; }
+        else { payload.amount_out = Math.abs(n); payload.amount_in = 0; }
+      }
+    }
+
+    payload.is_active = true;
   }
 
   return payload;
 }
 
 /**
- * All-or-nothing save. Only call after validateAllRows() returns valid:true.
+ * All-or-nothing batch save.
  * Returns { batchId, rowCount, months }
- * Throws on any save failure — caller must handle with try/catch.
+ * Throws on any save failure.
  */
 export async function saveImportBatch({
   importType, rows, mapping, filename, fileHash, fallbackMonth,
 }) {
+  const info = getEntityInfo(importType);
+  if (!info) throw new Error(`Unknown import type: ${importType}`);
+
   const batchId = crypto.randomUUID();
-  const importDate = new Date().toISOString().slice(0, 10);
-  const entity = getEntityForType(importType);
-  if (!entity) throw new Error(`Unknown import type: ${importType}`);
+  const importedAt = new Date().toISOString();
+  const importDate = importedAt.slice(0, 10);
 
   const CHUNK = 5;
   const monthsSet = new Set();
+  const dateSet = new Set();
 
-  // Process all rows first (sync, no await)
+  // Process all rows first (synchronous)
   const processed = rows.map(row => {
     const p = processRow(row, mapping, importType, fallbackMonth);
-    if (p.month) monthsSet.add(p.month);
+    const m = p.accounting_month || p.month;
+    if (m) monthsSet.add(m);
+    const d = p.transaction_date || p.date;
+    if (d) dateSet.add(d.slice(0, 10));
     return p;
   });
 
-  // Save in chunks — await each chunk sequentially to respect rate limits
+  // Save in chunks
   for (let i = 0; i < processed.length; i += CHUNK) {
     const chunk = processed.slice(i, i + CHUNK);
-    await Promise.all(chunk.map(p => entity.create({ ...p, import_batch_id: batchId })));
+    await Promise.all(chunk.map(p => info.entity.create({ ...p, import_batch_id: batchId })));
   }
 
   const months = Array.from(monthsSet).sort();
+  const dates = Array.from(dateSet).sort();
+  const dateRange = dates.length > 0
+    ? (dates.length === 1 ? dates[0] : `${dates[0]} → ${dates[dates.length - 1]}`)
+    : "";
 
   await base44.entities.ImportBatch.create({
     import_type: importType,
+    source_file_name: filename,
     filename,
     file_hash: fileHash || "",
+    imported_at: importedAt,
     import_date: importDate,
-    month: months[0] || fallbackMonth,
+    accounting_months_detected: months.join(", "),
+    date_range_detected: dateRange,
+    month: months[0] || fallbackMonth || "",
+    rows_detected: rows.length,
+    rows_saved: rows.length,
     row_count: rows.length,
+    errors_count: 0,
     error_count: 0,
     status: "imported",
     column_mapping: JSON.stringify(mapping),
@@ -195,28 +266,18 @@ export async function recordFailedValidation({
   const importDate = new Date().toISOString().slice(0, 10);
   await base44.entities.ImportBatch.create({
     import_type: importType,
+    source_file_name: filename,
     filename,
     file_hash: fileHash || "",
+    imported_at: new Date().toISOString(),
     import_date: importDate,
-    month: fallbackMonth,
+    month: fallbackMonth || "",
+    rows_detected: rowCount,
+    rows_saved: 0,
     row_count: rowCount,
+    errors_count: errors.length,
     error_count: errors.length,
     status: "failed_validation",
     notes: `Validation failed: ${errors.length} error(s)`,
   });
-}
-
-function getEntityForType(type) {
-  switch (type) {
-    case "sumup_sales":
-    case "sumup_articles":
-      return base44.entities.SalesRecord;
-    case "sumup_transactions": // no product info — save as bank/transaction row
-    case "bank_transactions":
-    case "supplier_documents":
-    case "logistics_documents":
-      return base44.entities.BankTransaction;
-    default:
-      return null;
-  }
 }

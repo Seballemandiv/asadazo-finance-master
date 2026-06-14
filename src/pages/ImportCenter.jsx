@@ -25,7 +25,13 @@ const TAB_LABELS = {
   logistics_documents: "Logistics",
 };
 
-const BANK_TYPES = new Set(["sumup_transactions", "bank_transactions", "supplier_documents", "logistics_documents"]);
+// Map import type → entity name (for cleanup)
+const ENTITY_FOR_TYPE = {
+  sumup_sales: "SalesRecord",
+  sumup_articles: "ArticleRecord",
+  sumup_transactions: "SumUpTransactionRecord",
+  bank_transactions: "BankTransaction",
+};
 
 export default function ImportCenter() {
   const [activeTab, setActiveTab] = useState("sumup_sales");
@@ -46,21 +52,16 @@ export default function ImportCenter() {
     let deletedBank = 0;
     let noLinkWarning = false;
 
+    let totalDeleted = 0;
     for (const batch of batches) {
-      const isBankType = BANK_TYPES.has(batch.import_type);
-      if (isBankType) {
-        const recs = await base44.entities.BankTransaction.filter({ import_batch_id: batch.id });
-        if (recs.length === 0 && (batch.row_count || 0) > 0) noLinkWarning = true;
+      const entityName = ENTITY_FOR_TYPE[batch.import_type];
+      if (entityName && base44.entities[entityName]) {
+        const entity = base44.entities[entityName];
+        const recs = await entity.filter({ import_batch_id: batch.id });
+        if (recs.length === 0 && (batch.rows_saved || batch.row_count || 0) > 0) noLinkWarning = true;
         for (const r of recs) {
-          await base44.entities.BankTransaction.delete(r.id);
-          deletedBank++;
-        }
-      } else {
-        const recs = await base44.entities.SalesRecord.filter({ import_batch_id: batch.id });
-        if (recs.length === 0 && (batch.row_count || 0) > 0) noLinkWarning = true;
-        for (const r of recs) {
-          await base44.entities.SalesRecord.delete(r.id);
-          deletedSales++;
+          await entity.delete(r.id);
+          totalDeleted++;
         }
       }
     }
@@ -71,33 +72,30 @@ export default function ImportCenter() {
     if (noLinkWarning) {
       setCleanupMsg({
         type: "warning",
-        text: `Cleaned ${deletedSales} sales + ${deletedBank} bank rows. ⚠ Some old records cannot be safely linked to a reverted batch (no import_batch_id). Use "Reset All Imported Data" to fully clear.`,
+        text: `Cleaned ${totalDeleted} rows from reverted batches. ⚠ Some old records had no import_batch_id — use "Reset All" for a full clear.`,
       });
     } else {
       setCleanupMsg({
         type: "success",
-        text: `Reverted import data cleaned: ${deletedSales} sales rows and ${deletedBank} bank/transaction rows deleted.`,
+        text: `Reverted import data cleaned: ${totalDeleted} rows deleted.`,
       });
     }
   };
 
   const handleResetAll = async () => {
-    if (!confirm("This will DELETE all SalesRecord and BankTransaction rows. ProductMapping, BankRule, and settings are kept. This cannot be undone. Continue?")) return;
+    if (!confirm("This will DELETE all imported rows (SalesRecord, ArticleRecord, SumUpTransactionRecord, BankTransaction). ProductMapping, BankRule, and mappings are kept. Cannot be undone. Continue?")) return;
     setResetting(true);
     setCleanupMsg(null);
 
-    // Delete all SalesRecords
-    let salesPage = await base44.entities.SalesRecord.list(undefined, 500);
-    while (salesPage.length > 0) {
-      for (const r of salesPage) await base44.entities.SalesRecord.delete(r.id);
-      salesPage = await base44.entities.SalesRecord.list(undefined, 500);
-    }
-
-    // Delete all BankTransactions
-    let bankPage = await base44.entities.BankTransaction.list(undefined, 500);
-    while (bankPage.length > 0) {
-      for (const r of bankPage) await base44.entities.BankTransaction.delete(r.id);
-      bankPage = await base44.entities.BankTransaction.list(undefined, 500);
+    // Delete all transactional records
+    const transactionalEntities = ["SalesRecord", "ArticleRecord", "SumUpTransactionRecord", "BankTransaction"];
+    for (const name of transactionalEntities) {
+      if (!base44.entities[name]) continue;
+      let page = await base44.entities[name].list(undefined, 500);
+      while (page.length > 0) {
+        for (const r of page) await base44.entities[name].delete(r.id);
+        page = await base44.entities[name].list(undefined, 500);
+      }
     }
 
     // Mark all ImportBatches as reverted

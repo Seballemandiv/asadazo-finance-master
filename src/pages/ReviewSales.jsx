@@ -26,8 +26,14 @@ export default function ReviewSales() {
       base44.entities.ProductMapping.list(),
       base44.entities.CutCost.list(),
     ]);
-    const activeBatchIds = new Set(activeBatches.map(b => b.id));
-    const activeRecs = recs.filter(r => !r.import_batch_id || activeBatchIds.has(r.import_batch_id));
+    // Only sumup_sales batches drive Review Sales
+    const activeBatchIds = new Set(
+      activeBatches.filter(b => b.import_type === "sumup_sales").map(b => b.id)
+    );
+    const activeRecs = recs.filter(r =>
+      r.is_active !== false &&
+      (!r.import_batch_id || activeBatchIds.has(r.import_batch_id))
+    );
     setRecords(activeRecs);
     setMappings(maps);
     setCutCosts(cuts);
@@ -37,15 +43,17 @@ export default function ReviewSales() {
   useEffect(() => { load(); }, []);
 
   const availableMonths = useMemo(() => {
-    const months = new Set(records.map(r => r.month).filter(Boolean));
+    const months = new Set(records.map(r => r.accounting_month || r.month).filter(Boolean));
     return Array.from(months).sort().reverse();
   }, [records]);
 
   const filtered = useMemo(() => {
     return records.filter(r => {
-      const monthOk = selectedMonth === "all" || r.month === selectedMonth;
+      const recMonth = r.accounting_month || r.month;
+      const monthOk = selectedMonth === "all" || recMonth === selectedMonth;
       const statusOk = statusFilter === "all" || r.mapping_status === statusFilter;
-      const searchOk = !search || r.product?.toLowerCase().includes(search.toLowerCase());
+      const prod = r.product_name || r.product || "";
+      const searchOk = !search || prod.toLowerCase().includes(search.toLowerCase());
       return monthOk && statusOk && searchOk;
     });
   }, [records, selectedMonth, statusFilter, search]);
@@ -131,10 +139,10 @@ export default function ReviewSales() {
                     />
                   ) : (
                     <tr key={r.id} className="border-t hover:bg-muted/20 cursor-pointer" onClick={() => setEditingId(r.id)}>
-                      <td className="px-3 py-2 whitespace-nowrap text-xs">{r.date?.slice(0, 10)}</td>
-                      <td className="px-3 py-2 max-w-[200px] truncate">{r.product}</td>
-                      <td className="px-3 py-2">{r.qty}</td>
-                      <td className="px-3 py-2">€{r.net_ex_vat?.toFixed(2)}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-xs">{(r.transaction_date || r.date)?.slice(0, 10)}</td>
+                      <td className="px-3 py-2 max-w-[200px] truncate">{r.product_name || r.product}</td>
+                      <td className="px-3 py-2">{r.quantity ?? r.qty}</td>
+                      <td className="px-3 py-2">€{(r.net_amount_ex_vat ?? r.net_ex_vat ?? 0).toFixed(2)}</td>
                       <td className="px-3 py-2">{r.channel}</td>
                       <td className="px-3 py-2">{r.revenue_type}</td>
                       <td className="px-3 py-2">{r.cut}</td>

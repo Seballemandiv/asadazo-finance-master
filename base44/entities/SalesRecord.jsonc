@@ -2,26 +2,52 @@
   "name": "SalesRecord",
   "type": "object",
   "properties": {
-    "date": {
+    "import_batch_id": {
+      "type": "string"
+    },
+    "accounting_month": {
       "type": "string",
-      "format": "date-time"
+      "description": "YYYY-MM"
     },
     "month": {
       "type": "string"
     },
-    "type": {
+    "transaction_date": {
+      "type": "string"
+    },
+    "date": {
       "type": "string"
     },
     "transaction_id": {
       "type": "string"
     },
+    "transaction_type": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
     "payment_method": {
       "type": "string"
     },
+    "quantity": {
+      "type": "number",
+      "default": 1
+    },
     "qty": {
-      "type": "number"
+      "type": "number",
+      "default": 1
+    },
+    "product_name": {
+      "type": "string"
     },
     "product": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "source_category": {
       "type": "string"
     },
     "category": {
@@ -34,20 +60,43 @@
       "type": "string",
       "default": "EUR"
     },
+    "price_before_discount": {
+      "type": "number",
+      "default": 0
+    },
+    "discount": {
+      "type": "number",
+      "default": 0
+    },
+    "gross_amount_inc_vat": {
+      "type": "number",
+      "default": 0
+    },
     "gross_inc_vat": {
-      "type": "number"
+      "type": "number",
+      "default": 0
+    },
+    "net_amount_ex_vat": {
+      "type": "number",
+      "default": 0
     },
     "net_ex_vat": {
-      "type": "number"
+      "type": "number",
+      "default": 0
+    },
+    "vat_amount": {
+      "type": "number",
+      "default": 0
     },
     "vat": {
-      "type": "number"
+      "type": "number",
+      "default": 0
     },
     "vat_rate": {
       "type": "string"
     },
-    "discount": {
-      "type": "number"
+    "account": {
+      "type": "string"
     },
     "mapping_status": {
       "type": "string",
@@ -66,7 +115,9 @@
         "Shipping",
         "Event",
         "Custom Revenue",
-        "Other Revenue"
+        "Other Revenue",
+        "Refund",
+        "Ignore"
       ]
     },
     "channel": {
@@ -75,7 +126,8 @@
         "Online Shop",
         "Event",
         "Wholesale",
-        "Other"
+        "Other",
+        "Internal"
       ]
     },
     "cut": {
@@ -110,18 +162,14 @@
       "default": 0
     },
     "review_flag": {
-      "type": "string",
-      "enum": [
-        "OK",
-        "REVIEW"
-      ]
+      "type": "string"
     },
     "order_flag": {
       "type": "number"
     },
-    "import_batch_id": {
-      "type": "string",
-      "description": "Reference to the ImportBatch that created this row"
+    "is_active": {
+      "type": "boolean",
+      "default": true
     }
   },
   "required": [

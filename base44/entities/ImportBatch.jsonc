@@ -14,6 +14,9 @@
       ],
       "description": "Type of import"
     },
+    "source_file_name": {
+      "type": "string"
+    },
     "filename": {
       "type": "string"
     },
@@ -21,15 +24,37 @@
       "type": "string",
       "description": "Hash to detect duplicate imports"
     },
+    "imported_at": {
+      "type": "string",
+      "description": "ISO datetime of import"
+    },
     "import_date": {
       "type": "string"
     },
+    "accounting_months_detected": {
+      "type": "string",
+      "description": "Comma-separated list of YYYY-MM months detected in the file"
+    },
+    "date_range_detected": {
+      "type": "string",
+      "description": "Human-readable date range from the file"
+    },
     "month": {
       "type": "string",
-      "description": "YYYY-MM"
+      "description": "Primary accounting month YYYY-MM"
+    },
+    "rows_detected": {
+      "type": "number"
+    },
+    "rows_saved": {
+      "type": "number"
     },
     "row_count": {
       "type": "number"
+    },
+    "errors_count": {
+      "type": "number",
+      "default": 0
     },
     "error_count": {
       "type": "number",
@@ -38,11 +63,13 @@
     "status": {
       "type": "string",
       "enum": [
+        "preview",
         "imported",
         "failed_validation",
+        "failed_save",
         "reverted"
       ],
-      "default": "imported"
+      "default": "preview"
     },
     "column_mapping": {
       "type": "string",
@@ -57,7 +84,6 @@
     }
   },
   "required": [
-    "import_type",
-    "month"
+    "import_type"
   ]
 }
