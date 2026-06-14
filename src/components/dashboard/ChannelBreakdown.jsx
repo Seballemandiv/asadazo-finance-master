@@ -2,7 +2,12 @@ import React, { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
-const COLORS = { "Online Shop": "#3b82f6", "Event": "#f59e0b", "Wholesale": "#10b981", "Other": "#94a3b8" };
+const COLORS = {
+  "Online Shop": "#611111",
+  "Event": "#F4BE6E",
+  "Wholesale": "#450A0A",
+  "Other": "#171111",
+};
 
 export default function ChannelBreakdown({ sales }) {
   const data = useMemo(() => {
@@ -36,7 +41,7 @@ export default function ChannelBreakdown({ sales }) {
             <YAxis tick={{ fontSize: 12 }} tickFormatter={v => `€${v}`} />
             <Tooltip formatter={(v) => `€${v.toFixed(2)}`} />
             <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-              {data.map((d, i) => <Cell key={i} fill={COLORS[d.name] || "#94a3b8"} />)}
+              {data.map((d, i) => <Cell key={i} fill={COLORS[d.name] || "#171111"} />)}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
