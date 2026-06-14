@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, RefreshCw, Wand2 } from "lucide-react";
@@ -17,6 +16,7 @@ import {
 export default function ReviewSales() {
   const [records, setRecords] = useState([]);
   const [mappings, setMappings] = useState([]);
+  const [priceRows, setPriceRows] = useState([]);
   const [cutCosts, setCutCosts] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState("all");
   const [statusFilter, setStatusFilter] = useState("To review");
@@ -28,10 +28,11 @@ export default function ReviewSales() {
 
   const load = async () => {
     setLoading(true);
-    const [activeBatches, recs, maps, cuts] = await Promise.all([
+    const [activeBatches, recs, maps, prices, cuts] = await Promise.all([
       base44.entities.ImportBatch.filter({ status: "imported" }),
       base44.entities.SalesRecord.list("-date", 5000),
       base44.entities.ProductMapping.list(),
+      base44.entities.MonthlyProductPrice.list("-month", 5000),
       base44.entities.CutCost.list(),
     ]);
     // Only sumup_sales batches drive Review Sales
@@ -45,6 +46,7 @@ export default function ReviewSales() {
     );
     setRecords(activeRecs);
     setMappings(maps);
+    setPriceRows(prices);
     setCutCosts(cuts);
     setLoading(false);
   };
@@ -98,7 +100,7 @@ export default function ReviewSales() {
           continue;
         }
 
-        const updates = calculateSalesMappingUpdates(record, mapping);
+        const updates = calculateSalesMappingUpdates(record, mapping, priceRows);
         await base44.entities.SalesRecord.update(record.id, updates);
         matched++;
         if (updates.mapping_status === "OK") ok++;
@@ -218,7 +220,7 @@ export default function ReviewSales() {
             <table className="w-full text-sm">
               <thead className="bg-muted text-muted-foreground text-xs">
                 <tr>
-                  {["Date", "Product", "Qty", "Net (ex VAT)", "Channel", "Rev Type", "Cut", "kg/unit", "Cost/kg", "COGS", "Status", ""].map(h => (
+                  {["Date", "Product", "Qty", "Net (ex VAT)", "Channel", "Rev Type", "Cut", "kg/unit", "Cost/kg", "Price Month", "COGS", "Status", ""].map(h => (
                     <th key={h} className="px-3 py-2 text-left font-medium whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -235,7 +237,7 @@ export default function ReviewSales() {
                       onCancel={() => setEditingId(null)}
                     />
                   ) : (
-                    <tr key={r.id} className="border-t hover:bg-muted/20 cursor-pointer" onClick={() => setEditingId(r.id)}>
+                    <tr key={r.id} className="border-t hover:bg-muted/20 cursor-pointer" onClick={() => setEditingId(r.id)} title={r.cost_source || ""}>
                       <td className="px-3 py-2 whitespace-nowrap text-xs">{(r.transaction_date || r.date)?.slice(0, 10)}</td>
                       <td className="px-3 py-2 max-w-[200px] truncate">{r.product_name || r.product}</td>
                       <td className="px-3 py-2">{r.quantity ?? r.qty}</td>
@@ -244,7 +246,8 @@ export default function ReviewSales() {
                       <td className="px-3 py-2">{r.revenue_type}</td>
                       <td className="px-3 py-2">{r.cut}</td>
                       <td className="px-3 py-2">{r.kg_per_unit}</td>
-                      <td className="px-3 py-2">{r.cost_per_kg}</td>
+                      <td className="px-3 py-2">€{Number(r.cost_per_kg || 0).toFixed(2)}</td>
+                      <td className="px-3 py-2">{r.price_month}</td>
                       <td className="px-3 py-2">€{(r.meat_cogs || 0).toFixed(2)}</td>
                       <td className="px-3 py-2">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge[r.mapping_status] || ""}`}>
