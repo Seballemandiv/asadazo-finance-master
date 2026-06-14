@@ -3,9 +3,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
 
-const COST_TYPES = ["Operating Expense", "Shipping Cost", "Event Cost", "Meat Purchase", "Refund", "Owner Payment", "Ignore"];
+const COST_TYPES = [
+  "Operating Expense",
+  "Shipping Cost",
+  "Event Cost",
+  "Meat Purchase",
+  "Payment Processor Payout",
+  "Refund",
+  "Owner Payment",
+  "Loan In / Payback",
+  "Loan Out",
+  "Transfer / Reconciliation",
+  "Ignore",
+];
 const CHANNELS = ["Online Shop", "Event", "Wholesale", "Other"];
 const STATUSES = ["OK", "To review", "Ignore"];
+
+function isPnlExpense(costType) {
+  return ["Operating Expense", "Shipping Cost", "Event Cost"].includes(costType);
+}
 
 export default function BankRowEditor({ record, onSave, onCancel }) {
   const [form, setForm] = useState({
@@ -23,11 +39,10 @@ export default function BankRowEditor({ record, onSave, onCancel }) {
     const eventCost = form.cost_type === "Event Cost" ? amountOut : 0;
     const meatPurchase = form.cost_type === "Meat Purchase" ? amountOut : 0;
     const refundAmount = form.cost_type === "Refund" ? amountOut : 0;
-    const excludedFromExpense = ["Ignore", "Meat Purchase", "Owner Payment", "Refund"].includes(form.cost_type);
 
     onSave({
       ...form,
-      counted_expense: excludedFromExpense ? 0 : amountOut,
+      counted_expense: isPnlExpense(form.cost_type) ? amountOut : 0,
       shipping_cost: shippingCost,
       operating_expenses: operatingExpenses,
       event_cost: eventCost,
@@ -46,7 +61,7 @@ export default function BankRowEditor({ record, onSave, onCancel }) {
       <td className="px-3 py-2 text-xs text-green-700">{record.amount_in > 0 ? `€${record.amount_in.toFixed(2)}` : ""}</td>
       <td className="px-3 py-2">
         <Select value={form.cost_type} onValueChange={v => set("cost_type", v)}>
-          <SelectTrigger className="h-7 text-xs w-40"><SelectValue placeholder="Cost type" /></SelectTrigger>
+          <SelectTrigger className="h-7 text-xs w-52"><SelectValue placeholder="Cost / cash type" /></SelectTrigger>
           <SelectContent>{COST_TYPES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
         </Select>
       </td>
