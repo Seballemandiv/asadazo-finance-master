@@ -54,6 +54,28 @@ export default function ReviewBank() {
     setEditingId(null);
   };
 
+  const handleRemoveFromFinance = async (id) => {
+    const confirmed = window.confirm("Remove this bank row from finance? Use this only for personal/non-business rows. It will be hidden from Review Bank and excluded from Dashboard calculations.");
+    if (!confirmed) return;
+
+    const updates = {
+      is_active: false,
+      review_status: "Ignore",
+      cost_type: "Ignore",
+      counted_expense: 0,
+      shipping_cost: 0,
+      operating_expenses: 0,
+      event_cost: 0,
+      meat_purchase: 0,
+      refund_amount: 0,
+    };
+
+    await base44.entities.BankTransaction.update(id, updates);
+    setRecords(prev => prev.filter(r => r.id !== id));
+    setEditingId(null);
+    setApplyMessage({ type: "success", text: "Bank row removed from finance and excluded from the dashboard." });
+  };
+
   const runClassification = async ({ includeOldIgnored = false } = {}) => {
     setApplying(true);
     setApplyMessage(null);
@@ -62,14 +84,8 @@ export default function ReviewBank() {
       const recMonth = r.accounting_month || r.month;
       const monthOk = selectedMonth === "all" || recMonth === selectedMonth;
       if (!monthOk) return false;
-
       if (r.review_status === "To review") return true;
-
-      // Reclassify old rows that were previously hidden as generic Ignore.
-      // Rows already reviewed as a specific type stay untouched.
-      if (includeOldIgnored) {
-        return r.review_status === "Ignore" && (!r.cost_type || r.cost_type === "Ignore");
-      }
+      if (includeOldIgnored) return r.review_status === "Ignore" && (!r.cost_type || r.cost_type === "Ignore");
       return false;
     });
 
@@ -178,7 +194,7 @@ export default function ReviewBank() {
       )}
 
       <div className="rounded-lg border bg-slate-50 px-4 py-3 text-xs text-slate-700">
-        Bank rows are cash movements. Card payouts should be “Payment Processor Payout” for reconciliation, not revenue. SumUp fees come from the SumUp Transaction Report. Loan/payback rows affect cash but not profit.
+        Bank rows are cash movements. Card payouts should be “Payment Processor Payout” for reconciliation, not revenue. SumUp fees come from the SumUp Transaction Report. Loan/payback rows affect cash but not profit. Personal/non-business rows can be removed from finance while keeping imported data history.
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -219,7 +235,13 @@ export default function ReviewBank() {
               </thead>
               <tbody>
                 {filtered.map(r => editingId === r.id ? (
-                  <BankRowEditor key={r.id} record={r} onSave={updates => handleUpdate(r.id, updates)} onCancel={() => setEditingId(null)} />
+                  <BankRowEditor
+                    key={r.id}
+                    record={r}
+                    onSave={updates => handleUpdate(r.id, updates)}
+                    onRemove={handleRemoveFromFinance}
+                    onCancel={() => setEditingId(null)}
+                  />
                 ) : (
                   <tr key={r.id} className="border-t hover:bg-muted/20 cursor-pointer" onClick={() => setEditingId(r.id)}>
                     <td className="px-3 py-2 whitespace-nowrap text-xs">{r.date}</td>
