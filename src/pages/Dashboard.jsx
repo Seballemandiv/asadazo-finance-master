@@ -160,13 +160,18 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard title="Meat COGS" value={`€${metrics.meatCogs.toFixed(2)}`} icon={Package} color="orange" small />
         <MetricCard title="Payment Fees" value={`€${(metrics.paymentFees || 0).toFixed(2)}`} icon={TrendingDown} color="slate" small />
-        <MetricCard title="Shipping Costs" value={`€${metrics.shippingCosts.toFixed(2)}`} icon={Truck} color="slate" small />
-        <MetricCard title="Operating Expenses" value={`€${metrics.operatingExpenses.toFixed(2)}`} icon={TrendingDown} color="slate" small />
+        <MetricCard title="Car rental NL" value={`€${(metrics.carRentalNL || 0).toFixed(2)}`} icon={TrendingDown} color="slate" small />
+        <MetricCard title="Transport Spain → AMS" value={`€${(metrics.transportSpainToAmsterdam || 0).toFixed(2)}`} icon={Truck} color="slate" small />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard title="Shipping Costs" value={`€${metrics.shippingCosts.toFixed(2)}`} icon={Truck} color="slate" small />
+        <MetricCard title="Operating Expenses" value={`€${metrics.operatingExpenses.toFixed(2)}`} icon={TrendingDown} color="slate" small />
         <MetricCard title="Event Costs" value={`€${metrics.eventCosts.toFixed(2)}`} icon={Calendar} color="slate" small />
         <MetricCard title="Meat Purchases (cash)" value={`€${metrics.meatPurchases.toFixed(2)}`} icon={Package} color="slate" small />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard title="Processor Payouts (cash)" value={`€${(metrics.paymentProcessorPayouts || 0).toFixed(2)}`} icon={TrendingUp} color="slate" small />
         <MetricCard title="Loans / Paybacks (cash)" value={`€${(metrics.loanInPayback || 0).toFixed(2)}`} icon={TrendingUp} color="slate" small />
       </div>
