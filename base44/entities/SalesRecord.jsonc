@@ -2,177 +2,50 @@
   "name": "SalesRecord",
   "type": "object",
   "properties": {
-    "import_batch_id": {
-      "type": "string"
-    },
-    "accounting_month": {
-      "type": "string",
-      "description": "YYYY-MM"
-    },
-    "month": {
-      "type": "string"
-    },
-    "transaction_date": {
-      "type": "string"
-    },
-    "date": {
-      "type": "string"
-    },
-    "transaction_id": {
-      "type": "string"
-    },
-    "transaction_type": {
-      "type": "string"
-    },
-    "type": {
-      "type": "string"
-    },
-    "payment_method": {
-      "type": "string"
-    },
-    "quantity": {
-      "type": "number",
-      "default": 1
-    },
-    "qty": {
-      "type": "number",
-      "default": 1
-    },
-    "product_name": {
-      "type": "string"
-    },
-    "product": {
-      "type": "string"
-    },
-    "description": {
-      "type": "string"
-    },
-    "source_category": {
-      "type": "string"
-    },
-    "category": {
-      "type": "string"
-    },
-    "sku": {
-      "type": "string"
-    },
-    "currency": {
-      "type": "string",
-      "default": "EUR"
-    },
-    "price_before_discount": {
-      "type": "number",
-      "default": 0
-    },
-    "discount": {
-      "type": "number",
-      "default": 0
-    },
-    "gross_amount_inc_vat": {
-      "type": "number",
-      "default": 0
-    },
-    "gross_inc_vat": {
-      "type": "number",
-      "default": 0
-    },
-    "net_amount_ex_vat": {
-      "type": "number",
-      "default": 0
-    },
-    "net_ex_vat": {
-      "type": "number",
-      "default": 0
-    },
-    "vat_amount": {
-      "type": "number",
-      "default": 0
-    },
-    "vat": {
-      "type": "number",
-      "default": 0
-    },
-    "vat_rate": {
-      "type": "string"
-    },
-    "account": {
-      "type": "string"
-    },
-    "mapping_status": {
-      "type": "string",
-      "enum": [
-        "OK",
-        "To review",
-        "Ignore"
-      ],
-      "default": "To review"
-    },
-    "revenue_type": {
-      "type": "string",
-      "enum": [
-        "Meat",
-        "Box",
-        "Shipping",
-        "Event",
-        "Custom Revenue",
-        "Other Revenue",
-        "Refund",
-        "Ignore"
-      ]
-    },
-    "channel": {
-      "type": "string",
-      "enum": [
-        "Online Shop",
-        "Event",
-        "Wholesale",
-        "Other",
-        "Internal"
-      ]
-    },
-    "cut": {
-      "type": "string"
-    },
-    "kg_per_unit": {
-      "type": "number",
-      "default": 0
-    },
-    "cost_per_kg": {
-      "type": "number",
-      "default": 0
-    },
-    "meat_cogs": {
-      "type": "number",
-      "default": 0
-    },
-    "product_revenue_ex_vat": {
-      "type": "number",
-      "default": 0
-    },
-    "shipping_revenue_ex_vat": {
-      "type": "number",
-      "default": 0
-    },
-    "event_revenue_ex_vat": {
-      "type": "number",
-      "default": 0
-    },
-    "other_revenue_ex_vat": {
-      "type": "number",
-      "default": 0
-    },
-    "review_flag": {
-      "type": "string"
-    },
-    "order_flag": {
-      "type": "number"
-    },
-    "is_active": {
-      "type": "boolean",
-      "default": true
-    }
+    "import_batch_id": { "type": "string" },
+    "accounting_month": { "type": "string", "description": "YYYY-MM" },
+    "month": { "type": "string" },
+    "transaction_date": { "type": "string" },
+    "date": { "type": "string" },
+    "transaction_id": { "type": "string" },
+    "transaction_type": { "type": "string" },
+    "type": { "type": "string" },
+    "payment_method": { "type": "string" },
+    "quantity": { "type": "number", "default": 1 },
+    "qty": { "type": "number", "default": 1 },
+    "product_name": { "type": "string" },
+    "product": { "type": "string" },
+    "description": { "type": "string" },
+    "source_category": { "type": "string" },
+    "category": { "type": "string" },
+    "sku": { "type": "string" },
+    "currency": { "type": "string", "default": "EUR" },
+    "price_before_discount": { "type": "number", "default": 0 },
+    "discount": { "type": "number", "default": 0 },
+    "gross_amount_inc_vat": { "type": "number", "default": 0 },
+    "gross_inc_vat": { "type": "number", "default": 0 },
+    "net_amount_ex_vat": { "type": "number", "default": 0 },
+    "net_ex_vat": { "type": "number", "default": 0 },
+    "vat_amount": { "type": "number", "default": 0 },
+    "vat": { "type": "number", "default": 0 },
+    "vat_rate": { "type": "string" },
+    "account": { "type": "string" },
+    "mapping_status": { "type": "string", "enum": ["OK", "To review", "Ignore"], "default": "To review" },
+    "revenue_type": { "type": "string", "enum": ["Meat", "Box", "Shipping", "Event", "Custom Revenue", "Other Revenue", "Refund", "Ignore"] },
+    "channel": { "type": "string", "enum": ["Online Shop", "Event", "Wholesale", "Other", "Internal"] },
+    "event_id": { "type": "string" },
+    "event_name": { "type": "string" },
+    "cut": { "type": "string" },
+    "kg_per_unit": { "type": "number", "default": 0 },
+    "cost_per_kg": { "type": "number", "default": 0 },
+    "meat_cogs": { "type": "number", "default": 0 },
+    "product_revenue_ex_vat": { "type": "number", "default": 0 },
+    "shipping_revenue_ex_vat": { "type": "number", "default": 0 },
+    "event_revenue_ex_vat": { "type": "number", "default": 0 },
+    "other_revenue_ex_vat": { "type": "number", "default": 0 },
+    "review_flag": { "type": "string" },
+    "order_flag": { "type": "number" },
+    "is_active": { "type": "boolean", "default": true }
   },
-  "required": [
-    "product"
-  ]
+  "required": ["product"]
 }
