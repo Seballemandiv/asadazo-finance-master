@@ -3,6 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
+import { getSalesNetExVat, getSalesProductName, getSalesQuantity } from "@/lib/cogsEngine";
 
 const REVENUE_TYPES = ["Meat", "Box", "Shipping", "Event", "Custom Revenue", "Other Revenue"];
 const CHANNELS = ["Online Shop", "Event", "Wholesale", "Other"];
@@ -20,35 +21,43 @@ export default function SalesRowEditor({ record, mappings, cutCosts, onSave, onC
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  const qty = getSalesQuantity(record);
+  const net = getSalesNetExVat(record);
+  const needsCogs = ["Meat", "Box", "Event"].includes(form.revenue_type);
+  const previewCogs = needsCogs
+    ? qty * (parseFloat(form.kg_per_unit) || 0) * (parseFloat(form.cost_per_kg) || 0)
+    : 0;
+
   const handleSave = () => {
-    const meatCogs = form.revenue_type === "Meat"
-      ? (record.qty || 1) * (parseFloat(form.kg_per_unit) || 0) * (parseFloat(form.cost_per_kg) || 0)
+    const revenueType = form.revenue_type;
+    const meatCogs = ["Meat", "Box", "Event"].includes(revenueType)
+      ? qty * (parseFloat(form.kg_per_unit) || 0) * (parseFloat(form.cost_per_kg) || 0)
       : 0;
 
-    const net = record.net_ex_vat || 0;
-    const productRevenue = ["Meat", "Box", "Custom Revenue"].includes(form.revenue_type) ? net : 0;
-    const shippingRevenue = form.revenue_type === "Shipping" ? net : 0;
-    const eventRevenue = form.revenue_type === "Event" ? net : 0;
-    const otherRevenue = form.revenue_type === "Other Revenue" ? net : 0;
+    const productRevenue = ["Meat", "Box", "Custom Revenue"].includes(revenueType) ? net : 0;
+    const shippingRevenue = revenueType === "Shipping" ? net : 0;
+    const eventRevenue = revenueType === "Event" ? net : 0;
+    const otherRevenue = revenueType === "Other Revenue" ? net : 0;
 
     onSave({
       ...form,
       kg_per_unit: parseFloat(form.kg_per_unit) || 0,
       cost_per_kg: parseFloat(form.cost_per_kg) || 0,
       meat_cogs: meatCogs,
-      product_revenue_ex_vat: productRevenue,
-      shipping_revenue_ex_vat: shippingRevenue,
-      event_revenue_ex_vat: eventRevenue,
-      other_revenue_ex_vat: otherRevenue,
+      product_revenue_ex_vat: form.mapping_status === "Ignore" ? 0 : productRevenue,
+      shipping_revenue_ex_vat: form.mapping_status === "Ignore" ? 0 : shippingRevenue,
+      event_revenue_ex_vat: form.mapping_status === "Ignore" ? 0 : eventRevenue,
+      other_revenue_ex_vat: form.mapping_status === "Ignore" ? 0 : otherRevenue,
+      review_flag: form.mapping_status === "OK" ? 0 : 1,
     });
   };
 
   return (
     <tr className="border-t bg-blue-50">
-      <td className="px-3 py-2 text-xs whitespace-nowrap">{record.date?.slice(0, 10)}</td>
-      <td className="px-3 py-2 text-xs max-w-[160px] truncate">{record.product}</td>
-      <td className="px-3 py-2 text-xs">{record.qty}</td>
-      <td className="px-3 py-2 text-xs">€{record.net_ex_vat?.toFixed(2)}</td>
+      <td className="px-3 py-2 text-xs whitespace-nowrap">{(record.transaction_date || record.date)?.slice(0, 10)}</td>
+      <td className="px-3 py-2 text-xs max-w-[180px] truncate">{getSalesProductName(record)}</td>
+      <td className="px-3 py-2 text-xs">{qty}</td>
+      <td className="px-3 py-2 text-xs">€{net.toFixed(2)}</td>
       <td className="px-3 py-2">
         <Select value={form.channel} onValueChange={v => set("channel", v)}>
           <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
@@ -67,8 +76,11 @@ export default function SalesRowEditor({ record, mappings, cutCosts, onSave, onC
       <td className="px-3 py-2">
         <Input className="h-7 text-xs w-16" type="number" step="0.01" value={form.kg_per_unit} onChange={e => set("kg_per_unit", e.target.value)} />
       </td>
+      <td className="px-3 py-2">
+        <Input className="h-7 text-xs w-20" type="number" step="0.01" value={form.cost_per_kg} onChange={e => set("cost_per_kg", e.target.value)} />
+      </td>
       <td className="px-3 py-2 text-xs">
-        €{(form.revenue_type === "Meat" ? (record.qty || 1) * (parseFloat(form.kg_per_unit) || 0) * (parseFloat(form.cost_per_kg) || 0) : 0).toFixed(2)}
+        €{previewCogs.toFixed(2)}
       </td>
       <td className="px-3 py-2">
         <Select value={form.mapping_status} onValueChange={v => set("mapping_status", v)}>
