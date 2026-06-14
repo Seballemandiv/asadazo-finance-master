@@ -1,14 +1,3 @@
-/**
- * Compute dashboard metrics from active SalesRecords and BankTransactions.
- *
- * Source rules:
- * - Revenue comes ONLY from SalesRecord (sumup_sales imports)
- * - ArticleRecord is for cross-check only — not counted as revenue here
- * - SumUpTransactionRecord is for payout/fee reconciliation only — not counted as revenue
- * - BankTransaction drives expense buckets (only OK-reviewed rows)
- * - Meat purchases are inventory/cash movement, not P&L COGS
- * - COGS comes from SalesRecord.meat_cogs, applied from ProductMapping + Monthly Prices
- */
 export function computeMetrics(sales, bank) {
   const activeSales = sales.filter(r => r.mapping_status !== "Ignore");
 
@@ -19,6 +8,9 @@ export function computeMetrics(sales, bank) {
     const vat = Number(r.vat_amount || r.vat || 0);
     return gross - vat;
   }
+
+  const okBank = bank.filter(r => r.review_status === "OK");
+  const refunds = okBank.reduce((s, r) => s + Number(r.refund_amount || 0), 0);
 
   const productRevenue = activeSales
     .filter(r => r.revenue_type === "Meat" || r.revenue_type === "Box")
@@ -32,15 +24,17 @@ export function computeMetrics(sales, bank) {
     .filter(r => r.revenue_type === "Event")
     .reduce((s, r) => s + (Number(r.event_revenue_ex_vat) || rowNet(r)), 0);
 
-  const otherRevenue = activeSales
+  const otherRevenueBeforeRefunds = activeSales
     .filter(r => r.revenue_type === "Custom Revenue" || r.revenue_type === "Other Revenue")
     .reduce((s, r) => s + (Number(r.other_revenue_ex_vat) || rowNet(r)), 0);
+  const otherRevenue = otherRevenueBeforeRefunds - refunds;
 
   const unmappedRevenue = activeSales
     .filter(r => !r.revenue_type || r.mapping_status === "To review")
     .reduce((s, r) => s + rowNet(r), 0);
 
-  const totalRevenue = activeSales.reduce((s, r) => s + rowNet(r), 0);
+  const grossSalesRevenue = activeSales.reduce((s, r) => s + rowNet(r), 0);
+  const totalRevenue = grossSalesRevenue - refunds;
   const salesIncVat = activeSales.reduce((s, r) => s + Number(r.gross_amount_inc_vat || r.gross_inc_vat || 0), 0);
   const meatCogs = activeSales.reduce((s, r) => s + Number(r.meat_cogs || 0), 0);
 
@@ -54,14 +48,11 @@ export function computeMetrics(sales, bank) {
     return false;
   }).length;
 
-  const okBank = bank.filter(r => r.review_status === "OK");
   const operatingExpenses = okBank.reduce((s, r) => s + Number(r.operating_expenses || 0), 0);
   const shippingCosts = okBank.reduce((s, r) => s + Number(r.shipping_cost || 0), 0);
   const eventCosts = okBank.reduce((s, r) => s + Number(r.event_cost || 0), 0);
   const meatPurchases = okBank.reduce((s, r) => s + Number(r.meat_purchase || 0), 0);
 
-  // Meat purchases are shown separately but deliberately excluded from totalCosts,
-  // otherwise the app double-counts stock purchases and sales COGS.
   const totalCosts = meatCogs + operatingExpenses + shippingCosts + eventCosts;
   const grossProfit = totalRevenue - totalCosts;
   const marginPct = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
@@ -72,6 +63,8 @@ export function computeMetrics(sales, bank) {
 
   return {
     totalRevenue,
+    grossSalesRevenue,
+    refunds,
     salesIncVat,
     productRevenue,
     shippingRevenue,
