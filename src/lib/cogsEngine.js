@@ -168,7 +168,7 @@ export function findMonthlyPrice(record, priceRows = [], mapping = null) {
 }
 
 export function calculateSalesMappingUpdates(record, mapping, priceRows = []) {
-  if (!mapping) return { mapping_status: "To review", review_flag: 1 };
+  if (!mapping) return { mapping_status: "To review", review_flag: "1" };
   const net = getSalesNetExVat(record);
   const qty = getSalesQuantity(record) || 0;
   const revenueType = mapping.revenue_type || "";
@@ -193,7 +193,7 @@ export function calculateSalesMappingUpdates(record, mapping, priceRows = []) {
       event_revenue_ex_vat: 0,
       other_revenue_ex_vat: 0,
       mapping_status: "Ignore",
-      review_flag: 0,
+      review_flag: "0",
     };
   }
 
@@ -214,7 +214,7 @@ export function calculateSalesMappingUpdates(record, mapping, priceRows = []) {
     event_revenue_ex_vat: revenueType === "Event" ? net : 0,
     other_revenue_ex_vat: revenueType === "Other Revenue" ? net : 0,
     mapping_status: status,
-    review_flag: status === "OK" ? 0 : 1,
+    review_flag: status === "OK" ? "0" : "1",
   };
 }
 
