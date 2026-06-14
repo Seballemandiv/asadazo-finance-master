@@ -10,6 +10,10 @@
       "type": "string",
       "description": "Product/cost line name from price list or supplier invoice"
     },
+    "provider": {
+      "type": "string",
+      "description": "Supplier/provider, e.g. Adrian or La Maxima"
+    },
     "sku": {
       "type": "string"
     },
@@ -39,12 +43,12 @@
     "landed_cost_per_unit": {
       "type": "number",
       "default": 0,
-      "description": "DAP Amsterdam / total unit cost used for COGS"
+      "description": "Total COGS per sold package/unit"
     },
     "landed_cost_per_kg": {
       "type": "number",
       "default": 0,
-      "description": "Calculated landed cost per kg. COGS uses kg sold × this value."
+      "description": "DAP cost per kg used for COGS"
     },
     "cost_per_kg": {
       "type": "number",
@@ -78,23 +82,5 @@
   "required": [
     "month",
     "product_name"
-  ],
-  "rls": {
-    "create": {
-      "user_condition": {
-        "role": "admin"
-      }
-    },
-    "read": {},
-    "update": {
-      "user_condition": {
-        "role": "admin"
-      }
-    },
-    "delete": {
-      "user_condition": {
-        "role": "admin"
-      }
-    }
-  }
+  ]
 }
