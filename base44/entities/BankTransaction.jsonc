@@ -2,55 +2,21 @@
   "name": "BankTransaction",
   "type": "object",
   "properties": {
-    "import_batch_id": {
-      "type": "string"
-    },
-    "accounting_month": {
-      "type": "string",
-      "description": "YYYY-MM"
-    },
-    "month": {
-      "type": "string"
-    },
-    "date": {
-      "type": "string"
-    },
-    "code": {
-      "type": "string"
-    },
-    "type": {
-      "type": "string"
-    },
-    "reference": {
-      "type": "string"
-    },
-    "payment_ref": {
-      "type": "string"
-    },
-    "counterparty": {
-      "type": "string"
-    },
-    "status": {
-      "type": "string"
-    },
-    "amount_out": {
-      "type": "number",
-      "default": 0
-    },
-    "amount_in": {
-      "type": "number",
-      "default": 0
-    },
-    "fees": {
-      "type": "number",
-      "default": 0
-    },
-    "balance": {
-      "type": "number"
-    },
-    "category": {
-      "type": "string"
-    },
+    "import_batch_id": { "type": "string" },
+    "accounting_month": { "type": "string", "description": "YYYY-MM" },
+    "month": { "type": "string" },
+    "date": { "type": "string" },
+    "code": { "type": "string" },
+    "type": { "type": "string" },
+    "reference": { "type": "string" },
+    "payment_ref": { "type": "string" },
+    "counterparty": { "type": "string" },
+    "status": { "type": "string" },
+    "amount_out": { "type": "number", "default": 0 },
+    "amount_in": { "type": "number", "default": 0 },
+    "fees": { "type": "number", "default": 0 },
+    "balance": { "type": "number" },
+    "category": { "type": "string" },
     "cost_type": {
       "type": "string",
       "enum": [
@@ -58,57 +24,31 @@
         "Shipping Cost",
         "Event Cost",
         "Meat Purchase",
+        "Payment Processor Payout",
         "Refund",
         "Owner Payment",
+        "Loan In / Payback",
+        "Loan Out",
+        "Transfer / Reconciliation",
         "Ignore"
       ]
     },
     "channel": {
       "type": "string",
-      "enum": [
-        "Online Shop",
-        "Event",
-        "Wholesale",
-        "Other"
-      ]
+      "enum": ["Online Shop", "Event", "Wholesale", "Other"]
     },
     "review_status": {
       "type": "string",
-      "enum": [
-        "OK",
-        "To review",
-        "Ignore"
-      ],
+      "enum": ["OK", "To review", "Ignore"],
       "default": "To review"
     },
-    "counted_expense": {
-      "type": "number",
-      "default": 0
-    },
-    "shipping_cost": {
-      "type": "number",
-      "default": 0
-    },
-    "operating_expenses": {
-      "type": "number",
-      "default": 0
-    },
-    "event_cost": {
-      "type": "number",
-      "default": 0
-    },
-    "meat_purchase": {
-      "type": "number",
-      "default": 0
-    },
-    "refund_amount": {
-      "type": "number",
-      "default": 0
-    },
-    "is_active": {
-      "type": "boolean",
-      "default": true
-    }
+    "counted_expense": { "type": "number", "default": 0 },
+    "shipping_cost": { "type": "number", "default": 0 },
+    "operating_expenses": { "type": "number", "default": 0 },
+    "event_cost": { "type": "number", "default": 0 },
+    "meat_purchase": { "type": "number", "default": 0 },
+    "refund_amount": { "type": "number", "default": 0 },
+    "is_active": { "type": "boolean", "default": true }
   },
   "required": []
 }
