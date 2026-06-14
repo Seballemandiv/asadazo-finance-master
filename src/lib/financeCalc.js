@@ -33,6 +33,8 @@ export function computeMetrics(sales, bank, transactions = []) {
   }).length;
 
   const operatingExpenses = okBank.reduce((s, r) => s + Number(r.operating_expenses || 0), 0);
+  const carRentalNL = okBank.reduce((s, r) => s + Number(r.car_rental_nl || 0), 0);
+  const transportSpainToAmsterdam = okBank.reduce((s, r) => s + Number(r.transport_spain_to_amsterdam || 0), 0);
   const shippingCosts = okBank.reduce((s, r) => s + Number(r.shipping_cost || 0), 0);
   const eventCosts = okBank.reduce((s, r) => s + Number(r.event_cost || 0), 0);
   const meatPurchases = okBank.reduce((s, r) => s + Number(r.meat_purchase || 0), 0);
@@ -44,7 +46,7 @@ export function computeMetrics(sales, bank, transactions = []) {
 
   const grossProfit = totalRevenue - meatCogs;
   const grossMarginPct = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
-  const totalCosts = meatCogs + operatingExpenses + shippingCosts + eventCosts + paymentFees;
+  const totalCosts = meatCogs + operatingExpenses + carRentalNL + transportSpainToAmsterdam + shippingCosts + eventCosts + paymentFees;
   const operatingProfit = totalRevenue - totalCosts;
   const marginPct = totalRevenue > 0 ? (operatingProfit / totalRevenue) * 100 : 0;
 
@@ -65,6 +67,8 @@ export function computeMetrics(sales, bank, transactions = []) {
     meatCogs,
     unmappedCogs,
     operatingExpenses,
+    carRentalNL,
+    transportSpainToAmsterdam,
     shippingCosts,
     eventCosts,
     paymentFees,
