@@ -5,6 +5,8 @@ import { Check, X, Trash2 } from "lucide-react";
 
 const COST_TYPES = [
   "Operating Expense",
+  "Car rental NL",
+  "Transport Spain to Amsterdam",
   "Expense Refund",
   "Shipping Cost",
   "Event Cost",
@@ -22,7 +24,7 @@ const CHANNELS = ["Online Shop", "Event", "Wholesale", "Other"];
 const STATUSES = ["OK", "To review", "Ignore"];
 
 function isPnlExpense(costType) {
-  return ["Operating Expense", "Shipping Cost", "Event Cost"].includes(costType);
+  return ["Operating Expense", "Shipping Cost", "Event Cost", "Car rental NL", "Transport Spain to Amsterdam"].includes(costType);
 }
 
 export default function BankRowEditor({ record, onSave, onCancel, onRemove }) {
@@ -38,16 +40,20 @@ export default function BankRowEditor({ record, onSave, onCancel, onRemove }) {
 
   const handleSave = () => {
     const expenseRefund = form.cost_type === "Expense Refund" ? amountIn : 0;
+    const carRental = form.cost_type === "Car rental NL" ? amountOut - amountIn : 0;
+    const spainTransport = form.cost_type === "Transport Spain to Amsterdam" ? amountOut - amountIn : 0;
 
     onSave({
       ...form,
       counted_expense: isPnlExpense(form.cost_type) ? amountOut : (form.cost_type === "Expense Refund" ? -expenseRefund : 0),
       shipping_cost: form.cost_type === "Shipping Cost" ? amountOut : 0,
       operating_expenses: form.cost_type === "Operating Expense" ? amountOut : (form.cost_type === "Expense Refund" ? -expenseRefund : 0),
+      car_rental_nl: carRental,
+      transport_spain_to_amsterdam: spainTransport,
       event_cost: form.cost_type === "Event Cost" ? amountOut : 0,
       meat_purchase: form.cost_type === "Meat Purchase" ? amountOut : 0,
       refund_amount: form.cost_type === "Refund" ? amountOut : 0,
-      expense_refund_amount: expenseRefund,
+      expense_refund_amount: expenseRefund || (["Car rental NL", "Transport Spain to Amsterdam"].includes(form.cost_type) ? amountIn : 0),
     });
   };
 
@@ -61,7 +67,7 @@ export default function BankRowEditor({ record, onSave, onCancel, onRemove }) {
       <td className="px-3 py-2 text-xs text-green-700">{amountIn > 0 ? `€${amountIn.toFixed(2)}` : ""}</td>
       <td className="px-3 py-2">
         <Select value={form.cost_type} onValueChange={v => set("cost_type", v)}>
-          <SelectTrigger className="h-7 text-xs w-52"><SelectValue placeholder="Cost / cash type" /></SelectTrigger>
+          <SelectTrigger className="h-7 text-xs w-56"><SelectValue placeholder="Cost / cash type" /></SelectTrigger>
           <SelectContent>{COST_TYPES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
         </Select>
       </td>
