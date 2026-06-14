@@ -1,0 +1,20 @@
+{
+  "name": "AsadazoEvent",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "event_date": { "type": "string", "description": "YYYY-MM-DD" },
+    "end_date": { "type": "string", "description": "YYYY-MM-DD optional" },
+    "location": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["Planned", "Confirmed", "Completed", "Cancelled"],
+      "default": "Planned"
+    },
+    "expected_guests": { "type": "number", "default": 0 },
+    "revenue_target": { "type": "number", "default": 0 },
+    "notes": { "type": "string" },
+    "is_active": { "type": "boolean", "default": true }
+  },
+  "required": ["name"]
+}
