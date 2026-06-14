@@ -1,15 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, CheckCircle2, X, FileText } from "lucide-react";
+import { AlertCircle, CheckCircle2, X, FileText, RefreshCw } from "lucide-react";
 import FileUploadZone from "./FileUploadZone";
 import ColumnMapper from "./ColumnMapper";
 import PreviewTable from "./PreviewTable";
 import PasteTextFallback from "./PasteTextFallback";
+import ErrorReport from "./ErrorReport";
 import { parseFile, hashFile } from "@/lib/fileParser";
-import { IMPORT_CONFIGS, autoDetectMapping, validateMapping } from "@/lib/importConfigs";
-import { saveImportBatch } from "@/lib/importSave";
+import { IMPORT_CONFIGS, autoDetectMapping } from "@/lib/importConfigs";
+import { validateAllRows } from "@/lib/importValidation";
+import { saveImportBatch, recordFailedValidation } from "@/lib/importSave";
 import { parseDate } from "@/lib/dateParser";
 import { base44 } from "@/api/base44Client";
 
@@ -32,7 +34,7 @@ function detectFallbackMonth(rows, mapping, dateField) {
 export default function ImportSection({ importType, onImportDone }) {
   const config = IMPORT_CONFIGS[importType];
 
-  const [stage, setStage] = useState("upload");
+  const [stage, setStage] = useState("upload"); // upload | preview | done
   const [fileName, setFileName] = useState("");
   const [fileHash, setFileHash] = useState("");
   const [headers, setHeaders] = useState([]);
@@ -40,7 +42,7 @@ export default function ImportSection({ importType, onImportDone }) {
   const [mapping, setMapping] = useState({});
   const [fallbackMonth, setFallbackMonth] = useState(MONTHS[0]);
   const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState(null); // { success, rowCount, months, errors, summary }
   const [dupWarning, setDupWarning] = useState(false);
 
   const reset = () => {
@@ -71,23 +73,36 @@ export default function ImportSection({ importType, onImportDone }) {
     setStage("preview");
   };
 
-  // Validation
-  const missingFields = validateMapping(mapping, importType);
-  const canSave = missingFields.length === 0;
+  // Live validation (re-runs whenever mapping or rows change)
+  const validation = useMemo(
+    () => rows.length > 0 ? validateAllRows(rows, mapping, importType, fallbackMonth) : null,
+    [rows, mapping, importType, fallbackMonth]
+  );
+
+  const canSave = validation?.valid === true;
 
   const handleSave = async () => {
+    if (!validation?.valid) return;
     setSaving(true);
     const res = await saveImportBatch({
+      importType, rows, mapping, filename: fileName, fileHash, fallbackMonth,
+    });
+    setSaving(false);
+    setResult({ success: true, rowCount: res.rowCount, months: res.months });
+    setStage("done");
+    onImportDone?.();
+  };
+
+  const handleRecordFailed = async () => {
+    if (!validation || validation.valid) return;
+    await recordFailedValidation({
       importType,
-      rows,
-      mapping,
       filename: fileName,
       fileHash,
       fallbackMonth,
+      rowCount: rows.length,
+      errors: validation.errors,
     });
-    setSaving(false);
-    setResult(res);
-    setStage("done");
     onImportDone?.();
   };
 
@@ -134,7 +149,7 @@ export default function ImportSection({ importType, onImportDone }) {
                 <p className="text-xs text-muted-foreground">{rows.length} rows · {importType}</p>
               </div>
               <div className="flex items-center gap-2">
-                <label className="text-xs text-muted-foreground whitespace-nowrap">Import fallback month:</label>
+                <label className="text-xs text-muted-foreground whitespace-nowrap">Fallback month:</label>
                 <Select value={fallbackMonth} onValueChange={setFallbackMonth}>
                   <SelectTrigger className="w-32 h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -144,23 +159,45 @@ export default function ImportSection({ importType, onImportDone }) {
               </div>
             </div>
 
-            {/* Validation warning */}
-            {missingFields.length > 0 && (
-              <div className="flex items-start gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-medium">Required fields not mapped:</span>{" "}
-                  {missingFields.join(", ")}. Please map these columns before saving.
-                </div>
-              </div>
-            )}
-
             <ColumnMapper
               targetFields={config.targetFields}
               fileHeaders={headers}
               mapping={mapping}
               onChange={setMapping}
             />
+
+            {/* Validation summary */}
+            {validation && (
+              <div className={`rounded-lg border px-4 py-3 text-xs ${
+                validation.valid
+                  ? "bg-green-50 border-green-200 text-green-800"
+                  : "bg-red-50 border-red-200 text-red-800"
+              }`}>
+                <div className="flex flex-wrap gap-4 font-medium">
+                  <span>Rows detected: <strong>{validation.summary.total}</strong></span>
+                  <span className="text-green-700">Valid rows: <strong>{validation.summary.valid}</strong></span>
+                  {validation.summary.rowsWithErrors > 0 && (
+                    <span className="text-red-700">Rows with errors: <strong>{validation.summary.rowsWithErrors}</strong></span>
+                  )}
+                  <span>Will be saved: <strong>{validation.valid ? validation.summary.total : 0}</strong></span>
+                </div>
+                {!validation.valid && (
+                  <p className="mt-1 text-red-700">
+                    Fix all errors before importing. This import is all-or-nothing — no partial imports allowed.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Error report (if any) */}
+            {validation && !validation.valid && (
+              <ErrorReport
+                errors={validation.errors}
+                summary={validation.summary}
+                filename={fileName}
+                importType={importType}
+              />
+            )}
 
             <PreviewTable
               headers={headers}
@@ -169,7 +206,7 @@ export default function ImportSection({ importType, onImportDone }) {
               importType={importType}
             />
 
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex items-center gap-3 pt-2 flex-wrap">
               <Button
                 onClick={handleSave}
                 disabled={saving || !canSave}
@@ -178,26 +215,52 @@ export default function ImportSection({ importType, onImportDone }) {
                 {saving ? "Saving…" : `Save Import Batch (${rows.length} rows)`}
               </Button>
               <Button variant="outline" onClick={reset} disabled={saving}>Cancel</Button>
+              {!canSave && validation && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground text-xs"
+                  onClick={() => {
+                    handleRecordFailed();
+                    reset();
+                  }}
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  Dismiss & fix mapping
+                </Button>
+              )}
             </div>
           </>
         )}
 
         {/* STAGE: done */}
         {stage === "done" && result && (
-          <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-green-800">Import complete</p>
-              <p className="text-xs text-green-700 mt-0.5">
-                {result.rowCount} rows saved
-                {result.errorCount > 0 && <span className="text-red-600 ml-1">· {result.errorCount} errors</span>}
-                {result.months?.length > 0 && (
-                  <span className="ml-1">· months: {result.months.join(", ")}</span>
-                )}
-              </p>
+          result.success ? (
+            <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-green-800">Import successful</p>
+                <p className="text-xs text-green-700 mt-0.5">
+                  {result.rowCount} rows saved · 0 errors
+                  {result.months?.length > 0 && (
+                    <span className="ml-1">· months: {result.months.join(", ")}</span>
+                  )}
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={reset}>Import another</Button>
             </div>
-            <Button size="sm" variant="outline" onClick={reset}>Import another</Button>
-          </div>
+          ) : (
+            <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-800">Import blocked</p>
+                <p className="text-xs text-red-700 mt-0.5">
+                  0 rows saved · {result.errorCount} errors found. Fix the errors before importing.
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={reset}>Try again</Button>
+            </div>
+          )
         )}
       </CardContent>
     </Card>

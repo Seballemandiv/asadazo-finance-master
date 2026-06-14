@@ -23,13 +23,16 @@ export default function ImportHistoryTable({ refreshKey }) {
   const handleRevert = async (batch) => {
     if (!confirm(`Revert "${batch.filename}" (${batch.row_count} rows)? All rows from this batch will be deleted.`)) return;
     setReverting(batch.id);
-    const isBankType = ["bank_transactions", "supplier_documents", "logistics_documents"].includes(batch.import_type);
-    if (isBankType) {
-      const recs = await base44.entities.BankTransaction.filter({ import_batch_id: batch.id });
-      await Promise.all(recs.map(r => base44.entities.BankTransaction.delete(r.id)));
-    } else {
-      const recs = await base44.entities.SalesRecord.filter({ import_batch_id: batch.id });
-      await Promise.all(recs.map(r => base44.entities.SalesRecord.delete(r.id)));
+    // failed_validation batches have no rows saved — just mark as reverted
+    if (batch.status !== "failed_validation") {
+      const isBankType = ["bank_transactions", "supplier_documents", "logistics_documents"].includes(batch.import_type);
+      if (isBankType) {
+        const recs = await base44.entities.BankTransaction.filter({ import_batch_id: batch.id });
+        await Promise.all(recs.map(r => base44.entities.BankTransaction.delete(r.id)));
+      } else {
+        const recs = await base44.entities.SalesRecord.filter({ import_batch_id: batch.id });
+        await Promise.all(recs.map(r => base44.entities.SalesRecord.delete(r.id)));
+      }
     }
     await base44.entities.ImportBatch.update(batch.id, { status: "reverted" });
     setBatches(prev => prev.map(b => b.id === batch.id ? { ...b, status: "reverted" } : b));
@@ -44,9 +47,18 @@ export default function ImportHistoryTable({ refreshKey }) {
     return batch.month || "—";
   };
 
-  const statusBadge = (status) => status === "imported"
-    ? <Badge className="bg-green-100 text-green-800 border-0 text-xs">Imported</Badge>
-    : <Badge className="bg-red-100 text-red-700 border-0 text-xs">Reverted</Badge>;
+  const statusBadge = (status) => {
+    switch (status) {
+      case "imported":
+        return <Badge className="bg-green-100 text-green-800 border-0 text-xs">Imported</Badge>;
+      case "failed_validation":
+        return <Badge className="bg-red-100 text-red-800 border-0 text-xs">Failed validation</Badge>;
+      case "reverted":
+        return <Badge className="bg-gray-100 text-gray-600 border-0 text-xs">Reverted</Badge>;
+      default:
+        return <Badge className="bg-gray-100 text-gray-600 border-0 text-xs">{status}</Badge>;
+    }
+  };
 
   return (
     <Card className="shadow-none border">

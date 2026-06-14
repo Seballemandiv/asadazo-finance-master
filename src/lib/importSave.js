@@ -5,8 +5,7 @@ import { IMPORT_CONFIGS } from "./importConfigs";
 
 /**
  * Apply column mapping to a raw row, parse dates and numbers.
- * Returns a fully normalised object plus derived fields:
- *   transaction_date, accounting_month, raw_original_date
+ * Returns a fully normalised object.
  */
 export function processRow(row, mapping, importType, fallbackMonth) {
   const config = IMPORT_CONFIGS[importType] || {};
@@ -21,7 +20,6 @@ export function processRow(row, mapping, importType, fallbackMonth) {
     if (raw === undefined || raw === null || raw === "") continue;
 
     if (target === dateField) {
-      // Keep raw value + parse
       out.raw_original_date = String(raw);
       const parsed = parseDate(raw);
       if (parsed) {
@@ -38,45 +36,38 @@ export function processRow(row, mapping, importType, fallbackMonth) {
     }
   }
 
-  // Fallback month if no date was parsed
   if (!out.accounting_month) out.accounting_month = fallbackMonth;
-
-  // Keep month field in sync (used by older dashboard logic)
   out.month = out.accounting_month;
-
   return out;
 }
 
 /**
- * Save rows to the appropriate entity in chunks to respect rate limits.
- * Returns { rowCount, errorCount, months }
+ * All-or-nothing save. Only call after validateAllRows() returns valid:true.
+ * Returns { batchId, rowCount, months }
  */
 export async function saveImportBatch({
   importType, rows, mapping, filename, fileHash, fallbackMonth,
 }) {
   const batchId = crypto.randomUUID();
   const importDate = new Date().toISOString().slice(0, 10);
-
   const entity = getEntityForType(importType);
-  const CHUNK = 5;
+  if (!entity) throw new Error(`Unknown import type: ${importType}`);
 
-  let rowCount = 0;
-  let errorCount = 0;
+  const CHUNK = 5;
   const monthsSet = new Set();
 
-  for (let i = 0; i < rows.length; i += CHUNK) {
-    const chunk = rows.slice(i, i + CHUNK);
-    const results = await Promise.allSettled(
-      chunk.map(row => {
-        const processed = processRow(row, mapping, importType, fallbackMonth);
-        processed.import_batch_id = batchId;
-        if (processed.accounting_month) monthsSet.add(processed.accounting_month);
-        if (!entity) return Promise.reject(new Error("Unknown entity"));
-        return entity.create(processed);
-      })
-    );
-    rowCount += results.filter(r => r.status === "fulfilled").length;
-    errorCount += results.filter(r => r.status === "rejected").length;
+  // Process all rows first
+  const processed = rows.map(row => {
+    const p = processRow(row, mapping, importType, fallbackMonth);
+    p.import_batch_id = batchId;
+    if (p.accounting_month) monthsSet.add(p.accounting_month);
+    return p;
+  });
+
+  // Save in chunks
+  for (let i = 0; i < processed.length; i += CHUNK) {
+    const chunk = processed.slice(i, i + CHUNK);
+    await Promise.all(chunk.map(p => entity.create(p)));
   }
 
   const months = Array.from(monthsSet).sort();
@@ -87,14 +78,34 @@ export async function saveImportBatch({
     file_hash: fileHash,
     import_date: importDate,
     month: months[0] || fallbackMonth,
-    row_count: rowCount,
-    error_count: errorCount,
+    row_count: rows.length,
+    error_count: 0,
     status: "imported",
     column_mapping: JSON.stringify(mapping),
     notes: months.length > 1 ? `Months: ${months.join(", ")}` : undefined,
   });
 
-  return { batchId, rowCount, errorCount, months };
+  return { batchId, rowCount: rows.length, months };
+}
+
+/**
+ * Record a failed validation attempt in ImportBatch (no rows saved).
+ */
+export async function recordFailedValidation({
+  importType, filename, fileHash, fallbackMonth, rowCount, errors,
+}) {
+  const importDate = new Date().toISOString().slice(0, 10);
+  await base44.entities.ImportBatch.create({
+    import_type: importType,
+    filename,
+    file_hash: fileHash,
+    import_date: importDate,
+    month: fallbackMonth,
+    row_count: rowCount,
+    error_count: errors.length,
+    status: "failed_validation",
+    validation_errors: JSON.stringify(errors.slice(0, 200)), // cap to avoid size issues
+  });
 }
 
 function getEntityForType(type) {

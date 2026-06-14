@@ -39,6 +39,7 @@
       "type": "string",
       "enum": [
         "imported",
+        "failed_validation",
         "reverted"
       ],
       "default": "imported"
@@ -49,6 +50,10 @@
     },
     "notes": {
       "type": "string"
+    },
+    "validation_errors": {
+      "type": "string",
+      "description": "JSON string of row-level validation errors"
     }
   },
   "required": [
