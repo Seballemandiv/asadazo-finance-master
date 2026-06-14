@@ -21,6 +21,7 @@
       "type": "string",
       "enum": [
         "Operating Expense",
+        "Expense Refund",
         "Shipping Cost",
         "Event Cost",
         "Meat Purchase",
@@ -30,6 +31,7 @@
         "Loan In / Payback",
         "Loan Out",
         "Transfer / Reconciliation",
+        "Manual Review",
         "Ignore"
       ]
     },
@@ -48,6 +50,7 @@
     "event_cost": { "type": "number", "default": 0 },
     "meat_purchase": { "type": "number", "default": 0 },
     "refund_amount": { "type": "number", "default": 0 },
+    "expense_refund_amount": { "type": "number", "default": 0 },
     "is_active": { "type": "boolean", "default": true }
   },
   "required": []
