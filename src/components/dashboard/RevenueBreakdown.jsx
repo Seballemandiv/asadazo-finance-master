@@ -2,7 +2,7 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
 
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"];
+const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"];
 
 export default function RevenueBreakdown({ metrics }) {
   const data = [
@@ -10,6 +10,7 @@ export default function RevenueBreakdown({ metrics }) {
     { name: "Shipping", value: metrics.shippingRevenue },
     { name: "Event", value: metrics.eventRevenue },
     { name: "Other", value: metrics.otherRevenue },
+    { name: "Unmapped / review", value: metrics.unmappedRevenue || 0 },
   ].filter(d => d.value > 0);
 
   if (!data.length) {
@@ -32,7 +33,7 @@ export default function RevenueBreakdown({ metrics }) {
             <Pie data={data} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
               {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
             </Pie>
-            <Tooltip formatter={(v) => `€${v.toFixed(2)}`} />
+            <Tooltip formatter={(v) => `€${Number(v).toFixed(2)}`} />
           </PieChart>
         </ResponsiveContainer>
       </CardContent>
