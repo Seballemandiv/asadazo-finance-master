@@ -46,10 +46,11 @@ export default function ProductMappingTable() {
     setSeeding(true);
     setMessage(null);
     try {
-      const [activeBatches, sales, maps] = await Promise.all([
+      const [activeBatches, sales, maps, priceRows] = await Promise.all([
         base44.entities.ImportBatch.filter({ status: "imported" }),
         base44.entities.SalesRecord.list("-date", 5000),
         base44.entities.ProductMapping.list(),
+        base44.entities.MonthlyProductPrice.list("-month", 5000),
       ]);
 
       const activeSalesBatchIds = new Set(
@@ -59,7 +60,7 @@ export default function ProductMappingTable() {
         r.is_active !== false && r.import_batch_id && activeSalesBatchIds.has(r.import_batch_id)
       );
 
-      const payloads = createMissingMappingPayloads(activeSales, maps);
+      const payloads = createMissingMappingPayloads(activeSales, maps, priceRows);
       if (payloads.length === 0) {
         setMessage({ type: "success", text: "No missing product mappings found for active sales imports." });
         setRecords(maps);
@@ -75,7 +76,7 @@ export default function ProductMappingTable() {
       setRecords([...maps, ...created]);
       setMessage({
         type: "warning",
-        text: `Created ${created.length} missing product mapping(s). Meat rows still need cost/kg review before COGS can be OK.`,
+        text: `Created ${created.length} missing product mapping(s). Rows with kg and Monthly Prices can now be applied to COGS; incomplete rows remain To review.`,
       });
     } catch (err) {
       console.error("Failed to create product mappings", err);
@@ -112,7 +113,7 @@ export default function ProductMappingTable() {
       )}
 
       <div className="rounded-lg border bg-slate-50 px-4 py-3 text-xs text-slate-600">
-        Workflow: create missing mappings from imported Sales → fill kg/unit and cost/kg for meat products → set Status = OK → go to Review Sales and click Apply Product Mappings.
+        Workflow: seed Monthly Prices first → create missing mappings from imported Sales → review kg/unit and set Status = OK → go to Review Sales and click Apply Product Mappings. Monthly Prices supply the cost/kg by sales month.
       </div>
 
       <Card>
@@ -121,7 +122,7 @@ export default function ProductMappingTable() {
             <table className="w-full text-sm">
               <thead className="bg-muted text-muted-foreground text-xs">
                 <tr>
-                  {["Product Name", "Revenue Type", "Channel", "Cut", "kg/unit", "Cost/kg", "Status", ""].map(h => (
+                  {["Product Name", "Revenue Type", "Channel", "Cut", "kg/unit", "Fallback Cost/kg", "Status", ""].map(h => (
                     <th key={h} className="px-3 py-2 text-left font-medium whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
