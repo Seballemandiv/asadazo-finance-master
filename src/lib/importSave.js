@@ -29,7 +29,7 @@ export function processRow(row, mapping, importType, fallbackMonth) {
   const config = IMPORT_CONFIGS[importType] || {};
   const numericFields = config.numericFields || [];
   const dateField = config.dateField || "date";
-  const isSales = ["sumup_sales", "sumup_articles", "sumup_transactions"].includes(importType);
+  const isSales = ["sumup_sales", "sumup_articles"].includes(importType);
   const allowedFields = isSales ? SALES_RECORD_FIELDS : BANK_TRANSACTION_FIELDS;
 
   const raw = {}; // intermediate: target_key → parsed value
@@ -73,6 +73,14 @@ export function processRow(row, mapping, importType, fallbackMonth) {
   // Map accounting month → entity "month" field
   const month = raw.__month || fallbackMonth;
   payload.month = month;
+
+  // Guarantee required `product` field for SalesRecord rows
+  if (isSales) {
+    if (!payload.product || String(payload.product).trim() === "") {
+      payload.product = "Unknown product - needs review";
+      payload.mapping_status = "To review";
+    }
+  }
 
   // Set default mapping_status for sales records
   if (isSales && !payload.mapping_status) {
@@ -182,8 +190,8 @@ function getEntityForType(type) {
   switch (type) {
     case "sumup_sales":
     case "sumup_articles":
-    case "sumup_transactions":
       return base44.entities.SalesRecord;
+    case "sumup_transactions": // no product info — save as bank/transaction row
     case "bank_transactions":
     case "supplier_documents":
     case "logistics_documents":

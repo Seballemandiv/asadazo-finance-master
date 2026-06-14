@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, CheckCircle2, X, FileText, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, X, FileText, RefreshCw, Eye } from "lucide-react";
 import FileUploadZone from "./FileUploadZone";
 import ColumnMapper from "./ColumnMapper";
 import PreviewTable from "./PreviewTable";
@@ -11,7 +11,7 @@ import ErrorReport from "./ErrorReport";
 import { parseFile, hashFile } from "@/lib/fileParser";
 import { IMPORT_CONFIGS, autoDetectMapping } from "@/lib/importConfigs";
 import { validateAllRows } from "@/lib/importValidation";
-import { saveImportBatch, recordFailedValidation } from "@/lib/importSave";
+import { saveImportBatch, recordFailedValidation, processRow } from "@/lib/importSave";
 import { parseDate } from "@/lib/dateParser";
 import { base44 } from "@/api/base44Client";
 
@@ -45,12 +45,30 @@ export default function ImportSection({ importType, onImportDone }) {
   const [result, setResult] = useState(null); // { success, rowCount, months, errors, summary }
   const [saveError, setSaveError] = useState(null);
   const [dupWarning, setDupWarning] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
+
+  // Build debug preview rows for the first 10 rows
+  const debugPreview = useMemo(() => {
+    if (!rows.length || !mapping) return [];
+    return rows.slice(0, 10).map((row, i) => {
+      const p = processRow(row, mapping, importType, fallbackMonth);
+      return {
+        rowNum: i + 1,
+        product: p.product || null,
+        qty: p.qty ?? null,
+        gross_inc_vat: p.gross_inc_vat ?? null,
+        month: p.month || fallbackMonth,
+        import_type: importType,
+        missingProduct: !p.product || p.product === "Unknown product - needs review",
+      };
+    });
+  }, [rows, mapping, importType, fallbackMonth]);
 
   const reset = () => {
     setStage("upload");
     setFileName(""); setFileHash(""); setHeaders([]); setRows([]);
     setMapping({}); setFallbackMonth(MONTHS[0]); setSaving(false);
-    setResult(null); setSaveError(null); setDupWarning(false);
+    setResult(null); setSaveError(null); setDupWarning(false); setShowDebug(false);
   };
 
   const handleFile = async (file) => {
@@ -104,7 +122,12 @@ export default function ImportSection({ importType, onImportDone }) {
     } catch (err) {
       clearTimeout(timeoutId);
       console.error("Import save failed:", err);
-      setSaveError(err?.message || "Unknown error during save.");
+      const msg = err?.message || "Unknown error during save.";
+      // Improve product-field error message
+      const friendlyMsg = msg.includes("product") && msg.toLowerCase().includes("required")
+        ? "Save payload is missing the required SalesRecord field 'product'. Check that the Description / Product Name column is mapped correctly (e.g. Beschrijving or Naam van artikel)."
+        : msg;
+      setSaveError(friendlyMsg);
     } finally {
       setSaving(false);
     }
@@ -222,6 +245,49 @@ export default function ImportSection({ importType, onImportDone }) {
               mapping={mapping}
               importType={importType}
             />
+
+            {/* Debug payload preview */}
+            {["sumup_sales", "sumup_articles"].includes(importType) && (
+              <div>
+                <button
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowDebug(v => !v)}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  {showDebug ? "Hide" : "Show"} save payload preview (first 10 rows)
+                </button>
+                {showDebug && (
+                  <div className="mt-2 overflow-x-auto border rounded-lg">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          <th className="px-2 py-1 text-left font-medium">#</th>
+                          <th className="px-2 py-1 text-left font-medium">product</th>
+                          <th className="px-2 py-1 text-left font-medium">qty</th>
+                          <th className="px-2 py-1 text-left font-medium">gross_inc_vat</th>
+                          <th className="px-2 py-1 text-left font-medium">month</th>
+                          <th className="px-2 py-1 text-left font-medium">import_type</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {debugPreview.map(r => (
+                          <tr key={r.rowNum} className={r.missingProduct ? "bg-red-50" : ""}>
+                            <td className="px-2 py-1 text-muted-foreground">{r.rowNum}</td>
+                            <td className={`px-2 py-1 max-w-[200px] truncate ${r.missingProduct ? "text-red-600 font-medium" : ""}`}>
+                              {r.product || <span className="text-red-500 font-medium">⚠ MISSING</span>}
+                            </td>
+                            <td className="px-2 py-1">{r.qty ?? "—"}</td>
+                            <td className="px-2 py-1">{r.gross_inc_vat ?? "—"}</td>
+                            <td className="px-2 py-1">{r.month}</td>
+                            <td className="px-2 py-1 text-muted-foreground">{r.import_type}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Save error */}
             {saveError && (
