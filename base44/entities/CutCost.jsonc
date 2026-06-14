@@ -1,0 +1,24 @@
+{
+  "name": "CutCost",
+  "type": "object",
+  "properties": {
+    "cut": {
+      "type": "string"
+    },
+    "cost_per_kg": {
+      "type": "number"
+    },
+    "selling_price_per_kg": {
+      "type": "number"
+    },
+    "source": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "cut"
+  ]
+}

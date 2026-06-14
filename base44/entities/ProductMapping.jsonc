@@ -1,0 +1,62 @@
+{
+  "name": "ProductMapping",
+  "type": "object",
+  "properties": {
+    "product_name": {
+      "type": "string",
+      "description": "Product name from SumUp"
+    },
+    "active_from": {
+      "type": "string"
+    },
+    "active_to": {
+      "type": "string"
+    },
+    "revenue_type": {
+      "type": "string",
+      "enum": [
+        "Meat",
+        "Box",
+        "Shipping",
+        "Event",
+        "Custom Revenue",
+        "Other Revenue"
+      ]
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "Online Shop",
+        "Event",
+        "Wholesale",
+        "Other"
+      ]
+    },
+    "cut": {
+      "type": "string"
+    },
+    "kg_per_unit": {
+      "type": "number",
+      "default": 0
+    },
+    "cost_per_kg": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "OK",
+        "To review",
+        "Ignore"
+      ],
+      "default": "To review"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "product_name"
+  ]
+}

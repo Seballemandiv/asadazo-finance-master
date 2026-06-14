@@ -1,0 +1,126 @@
+{
+  "name": "SalesRecord",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "month": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "transaction_id": {
+      "type": "string"
+    },
+    "payment_method": {
+      "type": "string"
+    },
+    "qty": {
+      "type": "number"
+    },
+    "product": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "sku": {
+      "type": "string"
+    },
+    "currency": {
+      "type": "string",
+      "default": "EUR"
+    },
+    "gross_inc_vat": {
+      "type": "number"
+    },
+    "net_ex_vat": {
+      "type": "number"
+    },
+    "vat": {
+      "type": "number"
+    },
+    "vat_rate": {
+      "type": "string"
+    },
+    "discount": {
+      "type": "number"
+    },
+    "mapping_status": {
+      "type": "string",
+      "enum": [
+        "OK",
+        "To review",
+        "Ignore"
+      ],
+      "default": "To review"
+    },
+    "revenue_type": {
+      "type": "string",
+      "enum": [
+        "Meat",
+        "Box",
+        "Shipping",
+        "Event",
+        "Custom Revenue",
+        "Other Revenue"
+      ]
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "Online Shop",
+        "Event",
+        "Wholesale",
+        "Other"
+      ]
+    },
+    "cut": {
+      "type": "string"
+    },
+    "kg_per_unit": {
+      "type": "number",
+      "default": 0
+    },
+    "cost_per_kg": {
+      "type": "number",
+      "default": 0
+    },
+    "meat_cogs": {
+      "type": "number",
+      "default": 0
+    },
+    "product_revenue_ex_vat": {
+      "type": "number",
+      "default": 0
+    },
+    "shipping_revenue_ex_vat": {
+      "type": "number",
+      "default": 0
+    },
+    "event_revenue_ex_vat": {
+      "type": "number",
+      "default": 0
+    },
+    "other_revenue_ex_vat": {
+      "type": "number",
+      "default": 0
+    },
+    "review_flag": {
+      "type": "string",
+      "enum": [
+        "OK",
+        "REVIEW"
+      ]
+    },
+    "order_flag": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "product"
+  ]
+}

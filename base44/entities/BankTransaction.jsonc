@@ -1,0 +1,95 @@
+{
+  "name": "BankTransaction",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string"
+    },
+    "month": {
+      "type": "string"
+    },
+    "code": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "reference": {
+      "type": "string"
+    },
+    "payment_ref": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "amount_out": {
+      "type": "number",
+      "default": 0
+    },
+    "amount_in": {
+      "type": "number",
+      "default": 0
+    },
+    "fees": {
+      "type": "number",
+      "default": 0
+    },
+    "balance": {
+      "type": "number"
+    },
+    "category": {
+      "type": "string"
+    },
+    "cost_type": {
+      "type": "string",
+      "enum": [
+        "Operating Expense",
+        "Shipping Cost",
+        "Event Cost",
+        "Meat Purchase",
+        "Owner Payment",
+        "Ignore"
+      ]
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "Online Shop",
+        "Event",
+        "Wholesale",
+        "Other"
+      ]
+    },
+    "review_status": {
+      "type": "string",
+      "enum": [
+        "OK",
+        "To review",
+        "Ignore"
+      ],
+      "default": "To review"
+    },
+    "counted_expense": {
+      "type": "number",
+      "default": 0
+    },
+    "shipping_cost": {
+      "type": "number",
+      "default": 0
+    },
+    "operating_expenses": {
+      "type": "number",
+      "default": 0
+    },
+    "event_cost": {
+      "type": "number",
+      "default": 0
+    },
+    "meat_purchase": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": []
+}

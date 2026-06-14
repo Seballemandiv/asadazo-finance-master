@@ -1,0 +1,38 @@
+{
+  "name": "EventMapping",
+  "type": "object",
+  "properties": {
+    "event_product": {
+      "type": "string"
+    },
+    "event": {
+      "type": "string"
+    },
+    "cut": {
+      "type": "string"
+    },
+    "kg_per_unit": {
+      "type": "number",
+      "default": 0
+    },
+    "cost_per_kg": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "OK",
+        "To review",
+        "Ignore"
+      ],
+      "default": "OK"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "event_product"
+  ]
+}

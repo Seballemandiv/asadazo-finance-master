@@ -1,0 +1,37 @@
+{
+  "name": "ShippingMapping",
+  "type": "object",
+  "properties": {
+    "product_name": {
+      "type": "string"
+    },
+    "revenue_type": {
+      "type": "string",
+      "default": "Shipping"
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "Online Shop",
+        "Event",
+        "Wholesale",
+        "Other"
+      ]
+    },
+    "method": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "OK",
+        "To review",
+        "Ignore"
+      ],
+      "default": "OK"
+    }
+  },
+  "required": [
+    "product_name"
+  ]
+}
