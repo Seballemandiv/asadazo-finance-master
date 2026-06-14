@@ -72,6 +72,11 @@ export default function ImportSection({ importType, onImportDone }) {
   };
 
   const handleFile = async (file) => {
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (!["csv", "xls", "xlsx"].includes(ext)) {
+      setSaveError(`Unsupported file type: .${ext}. Please upload a CSV, XLS, or XLSX file.`);
+      return;
+    }
     const [parsed, hash] = await Promise.all([parseFile(file), hashFile(file)]);
     await loadParsed(parsed, file.name, hash);
   };
