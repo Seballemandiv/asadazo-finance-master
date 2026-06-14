@@ -6,7 +6,7 @@
  * - ArticleRecord is for cross-check only — not counted as revenue here
  * - SumUpTransactionRecord is for payout/fee reconciliation only — not counted as revenue
  * - BankTransaction drives expense buckets (only OK-reviewed rows)
- * - COGS comes from SalesRecord.meat_cogs (qty × kg_per_unit × cost_per_kg applied during review)
+ * - COGS comes from SalesRecord.meat_cogs, which is applied from ProductMapping
  */
 export function computeMetrics(sales, bank) {
   // Revenue — only non-ignored sales records
@@ -14,51 +14,62 @@ export function computeMetrics(sales, bank) {
 
   // Per-row net amount: prefer net_amount_ex_vat, fall back to net_ex_vat, then gross - vat
   function rowNet(r) {
-    if (r.net_amount_ex_vat != null && r.net_amount_ex_vat !== 0) return r.net_amount_ex_vat;
-    if (r.net_ex_vat != null && r.net_ex_vat !== 0) return r.net_ex_vat;
-    const gross = r.gross_amount_inc_vat || r.gross_inc_vat || 0;
-    const vat = r.vat_amount || r.vat || 0;
+    if (r.net_amount_ex_vat != null) return Number(r.net_amount_ex_vat) || 0;
+    if (r.net_ex_vat != null) return Number(r.net_ex_vat) || 0;
+    const gross = Number(r.gross_amount_inc_vat || r.gross_inc_vat || 0);
+    const vat = Number(r.vat_amount || r.vat || 0);
     return gross - vat;
   }
 
-  // Revenue buckets — use mapped bucket fields if filled, else fall back to rowNet
+  // Revenue buckets — use mapped bucket fields if filled, else fall back to rowNet.
+  // Rows not mapped yet remain in totalRevenue, but not in a clean bucket until reviewed.
   const productRevenue = activeSales
     .filter(r => r.revenue_type === "Meat" || r.revenue_type === "Box")
-    .reduce((s, r) => s + (r.product_revenue_ex_vat || rowNet(r)), 0);
+    .reduce((s, r) => s + (Number(r.product_revenue_ex_vat) || rowNet(r)), 0);
 
   const shippingRevenue = activeSales
     .filter(r => r.revenue_type === "Shipping")
-    .reduce((s, r) => s + (r.shipping_revenue_ex_vat || rowNet(r)), 0);
+    .reduce((s, r) => s + (Number(r.shipping_revenue_ex_vat) || rowNet(r)), 0);
 
   const eventRevenue = activeSales
     .filter(r => r.revenue_type === "Event")
-    .reduce((s, r) => s + (r.event_revenue_ex_vat || rowNet(r)), 0);
+    .reduce((s, r) => s + (Number(r.event_revenue_ex_vat) || rowNet(r)), 0);
 
   const otherRevenue = activeSales
     .filter(r => r.revenue_type === "Custom Revenue" || r.revenue_type === "Other Revenue")
-    .reduce((s, r) => s + (r.other_revenue_ex_vat || rowNet(r)), 0);
+    .reduce((s, r) => s + (Number(r.other_revenue_ex_vat) || rowNet(r)), 0);
+
+  // Unmapped imported revenue is shown in total revenue but not bucketed.
+  const unmappedRevenue = activeSales
+    .filter(r => !r.revenue_type || r.mapping_status === "To review")
+    .reduce((s, r) => s + rowNet(r), 0);
 
   // Total = sum of all active rows net (provisionally — before mapping applied)
   const totalRevenue = activeSales.reduce((s, r) => s + rowNet(r), 0);
 
-  const salesIncVat = activeSales.reduce((s, r) => s + (r.gross_amount_inc_vat || r.gross_inc_vat || 0), 0);
+  const salesIncVat = activeSales.reduce((s, r) => s + Number(r.gross_amount_inc_vat || r.gross_inc_vat || 0), 0);
 
   // COGS from sales mapping
-  const meatCogs = activeSales.reduce((s, r) => s + (r.meat_cogs || 0), 0);
+  const meatCogs = activeSales.reduce((s, r) => s + Number(r.meat_cogs || 0), 0);
 
-  // Has unmapped products (COGS incomplete warning)
-  const unmappedCogs = activeSales.filter(r =>
-    (r.revenue_type === "Meat" || r.revenue_type === "Box") &&
-    (!r.kg_per_unit || r.kg_per_unit === 0) &&
-    r.mapping_status !== "Ignore"
-  ).length;
+  // COGS incomplete warning. Count imported sales rows that still need mapping OR
+  // mapped meat/event rows that are missing kg/unit or cost/kg.
+  const unmappedCogs = activeSales.filter(r => {
+    if (r.mapping_status === "Ignore") return false;
+    if (r.mapping_status === "To review") return true;
+    if (!r.revenue_type) return true;
+    if (["Meat", "Box", "Event"].includes(r.revenue_type)) {
+      return !Number(r.kg_per_unit) || !Number(r.cost_per_kg);
+    }
+    return false;
+  }).length;
 
   // Costs — only OK-reviewed bank rows
   const okBank = bank.filter(r => r.review_status === "OK");
-  const operatingExpenses = okBank.reduce((s, r) => s + (r.operating_expenses || 0), 0);
-  const shippingCosts     = okBank.reduce((s, r) => s + (r.shipping_cost || 0), 0);
-  const eventCosts        = okBank.reduce((s, r) => s + (r.event_cost || 0), 0);
-  const meatPurchases     = okBank.reduce((s, r) => s + (r.meat_purchase || 0), 0);
+  const operatingExpenses = okBank.reduce((s, r) => s + Number(r.operating_expenses || 0), 0);
+  const shippingCosts     = okBank.reduce((s, r) => s + Number(r.shipping_cost || 0), 0);
+  const eventCosts        = okBank.reduce((s, r) => s + Number(r.event_cost || 0), 0);
+  const meatPurchases     = okBank.reduce((s, r) => s + Number(r.meat_purchase || 0), 0);
 
   const totalCosts  = meatCogs + operatingExpenses + shippingCosts + eventCosts + meatPurchases;
   const grossProfit = totalRevenue - totalCosts;
@@ -78,6 +89,7 @@ export function computeMetrics(sales, bank) {
     shippingRevenue,
     eventRevenue,
     otherRevenue,
+    unmappedRevenue,
     meatCogs,
     unmappedCogs,
     operatingExpenses,
