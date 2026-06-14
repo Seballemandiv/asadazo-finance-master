@@ -33,15 +33,17 @@ function hasAny(text, words) {
 
 function buildUpdate({ cost_type, channel = "Other", review_status = "OK", amount = 0 }) {
   const isIgnore = cost_type === "Ignore" || review_status === "Ignore";
+  const excludedFromExpense = isIgnore || ["Meat Purchase", "Owner Payment", "Refund"].includes(cost_type);
   return {
     cost_type,
     channel,
     review_status: isIgnore ? "Ignore" : review_status,
-    counted_expense: isIgnore || cost_type === "Meat Purchase" || cost_type === "Owner Payment" ? 0 : amount,
+    counted_expense: excludedFromExpense ? 0 : amount,
     shipping_cost: cost_type === "Shipping Cost" ? amount : 0,
     operating_expenses: cost_type === "Operating Expense" ? amount : 0,
     event_cost: cost_type === "Event Cost" ? amount : 0,
     meat_purchase: cost_type === "Meat Purchase" ? amount : 0,
+    refund_amount: cost_type === "Refund" ? amount : 0,
   };
 }
 
@@ -55,16 +57,16 @@ export function classifyBankTransaction(record) {
     return buildUpdate({ cost_type: "Ignore", channel: "Online Shop", review_status: "Ignore", amount: 0 });
   }
 
-  // Other incoming transfers/refunds: keep out of P&L by default, review only if unclear.
+  // Incoming refunds/reversals are normally reconciliation, not revenue.
   if (incoming > 0) {
-    if (hasAny(text, ["refund", "terugbetaling", "retour", "reversal", "restitutie"])) {
-      return buildUpdate({ cost_type: "Ignore", channel: "Other", review_status: "Ignore", amount: 0 });
-    }
     return buildUpdate({ cost_type: "Ignore", channel: "Other", review_status: "Ignore", amount: 0 });
   }
 
-  if (out <= 0) {
-    return null;
+  if (out <= 0) return null;
+
+  // Customer refunds paid out reduce revenue; they are not operating costs.
+  if (hasAny(text, ["refund", "terugbetaling", "retour", "reversal", "restitutie", "chargeback", "dispute", "storno", "terugboeking"])) {
+    return buildUpdate({ cost_type: "Refund", channel: "Online Shop", review_status: "OK", amount: out });
   }
 
   // Meat suppliers / inventory purchases. These are cash movement / stock purchases,
@@ -114,7 +116,5 @@ export function classifyBankTransaction(record) {
 export function applyBankRule(record) {
   const update = classifyBankTransaction(record);
   if (update) return update;
-  return {
-    review_status: "To review",
-  };
+  return { review_status: "To review" };
 }
