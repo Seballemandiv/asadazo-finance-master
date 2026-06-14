@@ -4,7 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Check, X, Search } from "lucide-react";
+import { Check, X, Search, Wand2 } from "lucide-react";
+import { createMissingMappingPayloads } from "@/lib/cogsEngine";
 
 const REVENUE_TYPES = ["Meat", "Box", "Shipping", "Event", "Custom Revenue", "Other Revenue"];
 const CHANNELS = ["Online Shop", "Event", "Wholesale", "Other"];
@@ -16,10 +17,17 @@ export default function ProductMappingTable() {
   const [editForm, setEditForm] = useState({});
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
+  const [message, setMessage] = useState(null);
 
-  useEffect(() => {
-    base44.entities.ProductMapping.list().then(r => { setRecords(r); setLoading(false); });
-  }, []);
+  const load = async () => {
+    setLoading(true);
+    const r = await base44.entities.ProductMapping.list();
+    setRecords(r);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
 
   const filtered = records.filter(r =>
     !search || r.product_name?.toLowerCase().includes(search.toLowerCase())
@@ -34,16 +42,79 @@ export default function ProductMappingTable() {
     setEditingId(null);
   };
 
+  const handleCreateMissingFromSales = async () => {
+    setSeeding(true);
+    setMessage(null);
+    try {
+      const [activeBatches, sales, maps] = await Promise.all([
+        base44.entities.ImportBatch.filter({ status: "imported" }),
+        base44.entities.SalesRecord.list("-date", 5000),
+        base44.entities.ProductMapping.list(),
+      ]);
+
+      const activeSalesBatchIds = new Set(
+        activeBatches.filter(b => b.import_type === "sumup_sales").map(b => b.id)
+      );
+      const activeSales = sales.filter(r =>
+        r.is_active !== false && r.import_batch_id && activeSalesBatchIds.has(r.import_batch_id)
+      );
+
+      const payloads = createMissingMappingPayloads(activeSales, maps);
+      if (payloads.length === 0) {
+        setMessage({ type: "success", text: "No missing product mappings found for active sales imports." });
+        setRecords(maps);
+        return;
+      }
+
+      const created = [];
+      for (const payload of payloads) {
+        const rec = await base44.entities.ProductMapping.create(payload);
+        created.push(rec);
+      }
+
+      setRecords([...maps, ...created]);
+      setMessage({
+        type: "warning",
+        text: `Created ${created.length} missing product mapping(s). Meat rows still need cost/kg review before COGS can be OK.`,
+      });
+    } catch (err) {
+      console.error("Failed to create product mappings", err);
+      setMessage({ type: "error", text: err?.message || "Failed to create product mappings." });
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   const set = (k, v) => setEditForm(f => ({ ...f, [k]: v }));
 
   const statusColor = { "OK": "text-green-700", "To review": "text-yellow-600", "Ignore": "text-slate-500" };
 
   return (
     <div className="space-y-4">
-      <div className="relative w-64">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input className="pl-9" placeholder="Search product..." value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input className="pl-9" placeholder="Search product..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Button variant="outline" size="sm" onClick={handleCreateMissingFromSales} disabled={seeding}>
+          <Wand2 className="w-4 h-4 mr-2" /> {seeding ? "Creating…" : "Create Missing Mappings from Sales"}
+        </Button>
       </div>
+
+      {message && (
+        <div className={`rounded-lg border px-4 py-3 text-sm ${
+          message.type === "success" ? "bg-green-50 border-green-200 text-green-800" :
+          message.type === "error" ? "bg-red-50 border-red-200 text-red-800" :
+          "bg-amber-50 border-amber-200 text-amber-800"
+        }`}>
+          {message.text}
+        </div>
+      )}
+
+      <div className="rounded-lg border bg-slate-50 px-4 py-3 text-xs text-slate-600">
+        Workflow: create missing mappings from imported Sales → fill kg/unit and cost/kg for meat products → set Status = OK → go to Review Sales and click Apply Product Mappings.
+      </div>
+
       <Card>
         <CardContent className="overflow-x-auto p-0">
           {loading ? <div className="h-24 flex items-center justify-center text-muted-foreground text-sm">Loading…</div> : (
@@ -89,7 +160,7 @@ export default function ProductMappingTable() {
                   </tr>
                 ) : (
                   <tr key={r.id} className="border-t hover:bg-muted/20 cursor-pointer" onClick={() => startEdit(r)}>
-                    <td className="px-3 py-2 text-xs max-w-[200px] truncate font-medium">{r.product_name}</td>
+                    <td className="px-3 py-2 text-xs max-w-[260px] truncate font-medium">{r.product_name}</td>
                     <td className="px-3 py-2 text-xs">{r.revenue_type}</td>
                     <td className="px-3 py-2 text-xs">{r.channel}</td>
                     <td className="px-3 py-2 text-xs">{r.cut}</td>
