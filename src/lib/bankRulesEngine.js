@@ -19,26 +19,20 @@ export function getBankSearchText(record) {
   ].filter(Boolean).join(" "));
 }
 
-function amountOut(record) {
-  return Number(record?.amount_out || 0);
-}
+function amountOut(record) { return Number(record?.amount_out || 0); }
+function amountIn(record) { return Number(record?.amount_in || 0); }
+function hasAny(text, words) { return words.some(w => text.includes(normalizeText(w))); }
 
-function amountIn(record) {
-  return Number(record?.amount_in || 0);
-}
-
-function hasAny(text, words) {
-  return words.some(w => text.includes(normalizeText(w)));
+function isPnlExpense(costType) {
+  return ["Operating Expense", "Shipping Cost", "Event Cost"].includes(costType);
 }
 
 function buildUpdate({ cost_type, channel = "Other", review_status = "OK", amount = 0 }) {
-  const isIgnore = cost_type === "Ignore" || review_status === "Ignore";
-  const excludedFromExpense = isIgnore || ["Meat Purchase", "Owner Payment", "Refund"].includes(cost_type);
   return {
     cost_type,
     channel,
-    review_status: isIgnore ? "Ignore" : review_status,
-    counted_expense: excludedFromExpense ? 0 : amount,
+    review_status,
+    counted_expense: isPnlExpense(cost_type) ? amount : 0,
     shipping_cost: cost_type === "Shipping Cost" ? amount : 0,
     operating_expenses: cost_type === "Operating Expense" ? amount : 0,
     event_cost: cost_type === "Event Cost" ? amount : 0,
@@ -52,25 +46,29 @@ export function classifyBankTransaction(record) {
   const out = amountOut(record);
   const incoming = amountIn(record);
 
-  // Incoming SumUp payouts are reconciliation, not revenue. Revenue comes from SumUp Sales.
-  if (incoming > 0 && hasAny(text, ["sumup", "stichting derdengelden", "payout", "uitbetaling", "mctx", "betaling ontvangen"])) {
-    return buildUpdate({ cost_type: "Ignore", channel: "Online Shop", review_status: "Ignore", amount: 0 });
+  // MCT PID rows are Mollie/SumUp/card payout-style incoming payments in this bank export.
+  // They are not revenue: revenue is imported from SumUp Sales. They are reconciled cash-in.
+  if (incoming > 0 && hasAny(text, ["mct pid", "sumup", "stichting derdengelden", "payout", "uitbetaling", "mctx", "betaling ontvangen", "mollie"])) {
+    return buildUpdate({ cost_type: "Payment Processor Payout", channel: "Online Shop", review_status: "OK", amount: 0 });
   }
 
-  // Incoming refunds/reversals are normally reconciliation, not revenue.
+  // Money coming back from you/Javier/etc. is usually a loan repayment / owner funding return.
+  // It affects cash, not P&L revenue.
+  if (incoming > 0 && hasAny(text, ["sebastian", "seba", "allemandi", "javier", "rizzo", "owner", "prive", "private", "loan", "lening", "payback", "terugbetaling"])) {
+    return buildUpdate({ cost_type: "Loan In / Payback", channel: "Other", review_status: "OK", amount: 0 });
+  }
+
+  // Other incoming cash should be reviewed, not silently ignored.
   if (incoming > 0) {
-    return buildUpdate({ cost_type: "Ignore", channel: "Other", review_status: "Ignore", amount: 0 });
+    return buildUpdate({ cost_type: "Transfer / Reconciliation", channel: "Other", review_status: "To review", amount: 0 });
   }
 
   if (out <= 0) return null;
 
-  // Customer refunds paid out reduce revenue; they are not operating costs.
   if (hasAny(text, ["refund", "terugbetaling", "retour", "reversal", "restitutie", "chargeback", "dispute", "storno", "terugboeking"])) {
     return buildUpdate({ cost_type: "Refund", channel: "Online Shop", review_status: "OK", amount: out });
   }
 
-  // Meat suppliers / inventory purchases. These are cash movement / stock purchases,
-  // not COGS. COGS comes from Sales x Monthly Prices.
   if (hasAny(text, [
     "la maxima", "lamaxima", "mercadrian", "adrian", "meat boys", "meatboys", "ondara",
     "carnicer", "slager", "beef", "vlees", "meat", "proveedor", "supplier"
@@ -78,7 +76,6 @@ export function classifyBankTransaction(record) {
     return buildUpdate({ cost_type: "Meat Purchase", channel: "Online Shop", review_status: "OK", amount: out });
   }
 
-  // Shipping / delivery / logistics.
   if (hasAny(text, [
     "dhl", "postnl", "ups", "dpd", "fedex", "gls", "transport", "logistic", "logistics",
     "pallet", "freight", "shipment", "shipping", "delivery", "koerier", "courier"
@@ -86,7 +83,6 @@ export function classifyBankTransaction(record) {
     return buildUpdate({ cost_type: "Shipping Cost", channel: "Online Shop", review_status: "OK", amount: out });
   }
 
-  // Event-specific costs.
   if (hasAny(text, [
     "festival", "event", "venue", "atelier", "code noir", "bouncespace", "bloomingdale",
     "macumba", "fourvenues", "ticket", "tlx", "stand", "kraam", "tent", "sound", "dj"
@@ -94,20 +90,19 @@ export function classifyBankTransaction(record) {
     return buildUpdate({ cost_type: "Event Cost", channel: "Event", review_status: "OK", amount: out });
   }
 
-  // Vehicle/fuel/parking and general business operations.
   if (hasAny(text, [
     "free2move", "greenwheels", "miles", "sixt", "hertz", "avis", "rental", "rent a car",
     "shell", "bp", "esso", "total", "tango", "fuel", "benzine", "parking", "parkeren",
     "praxis", "gamma", "hornbach", "action", "bol com", "amazon", "ikea", "makro", "hanos", "sligro",
     "kvk", "belastingdienst", "gemeente", "tax", "bankkosten", "bank cost", "fee", "kosten",
-    "google", "meta", "facebook", "instagram", "shopify", "canva", "notion", "base44", "netlify", "vercel"
+    "google", "meta", "facebook", "instagram", "shopify", "canva", "notion", "base44", "netlify", "vercel",
+    "jumbo", "bagels beans", "ft store"
   ])) {
     return buildUpdate({ cost_type: "Operating Expense", channel: "Other", review_status: "OK", amount: out });
   }
 
-  // Owner payments / private transfers should not be counted as operating cost.
   if (hasAny(text, ["sebastian", "seba", "allemandi", "javier", "rizzo", "owner", "prive", "private", "salary", "salaris"])) {
-    return buildUpdate({ cost_type: "Owner Payment", channel: "Other", review_status: "OK", amount: out });
+    return buildUpdate({ cost_type: "Loan Out", channel: "Other", review_status: "OK", amount: 0 });
   }
 
   return null;
