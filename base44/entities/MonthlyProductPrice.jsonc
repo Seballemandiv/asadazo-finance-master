@@ -1,0 +1,100 @@
+{
+  "name": "MonthlyProductPrice",
+  "type": "object",
+  "properties": {
+    "month": {
+      "type": "string",
+      "description": "Accounting month YYYY-MM. Used to align COGS with the sales month."
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product/cost line name from price list or supplier invoice"
+    },
+    "sku": {
+      "type": "string"
+    },
+    "cut": {
+      "type": "string"
+    },
+    "package_label": {
+      "type": "string",
+      "description": "Original package label, e.g. 1.2 KG or 0.5 KG"
+    },
+    "kg_per_unit": {
+      "type": "number",
+      "default": 0
+    },
+    "cost_fca": {
+      "type": "number",
+      "default": 0
+    },
+    "transport_per_unit": {
+      "type": "number",
+      "default": 0
+    },
+    "packaging_per_unit": {
+      "type": "number",
+      "default": 0
+    },
+    "landed_cost_per_unit": {
+      "type": "number",
+      "default": 0,
+      "description": "DAP Amsterdam / total unit cost used for COGS"
+    },
+    "landed_cost_per_kg": {
+      "type": "number",
+      "default": 0,
+      "description": "Calculated landed cost per kg. COGS uses kg sold × this value."
+    },
+    "cost_per_kg": {
+      "type": "number",
+      "default": 0
+    },
+    "sale_price_inc_vat": {
+      "type": "number",
+      "default": 0
+    },
+    "vat_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "source": {
+      "type": "string",
+      "description": "Manual, prices.xlsx, supplier OCR, invoice, etc."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "OK",
+        "To review",
+        "Inactive"
+      ],
+      "default": "OK"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "month",
+    "product_name"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {},
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
