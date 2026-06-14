@@ -38,6 +38,8 @@
       ]
     },
     "channel": { "type": "string", "enum": ["Online Shop", "Event", "Wholesale", "Other"] },
+    "event_id": { "type": "string" },
+    "event_name": { "type": "string" },
     "review_status": { "type": "string", "enum": ["OK", "To review", "Ignore"], "default": "To review" },
     "counted_expense": { "type": "number", "default": 0 },
     "shipping_cost": { "type": "number", "default": 0 },
