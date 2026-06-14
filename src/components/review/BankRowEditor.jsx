@@ -26,6 +26,8 @@ function isPnlExpense(costType) {
 }
 
 export default function BankRowEditor({ record, onSave, onCancel, onRemove }) {
+  const amountOut = Number(record.amount_out || 0);
+  const amountIn = Number(record.amount_in || 0);
   const [form, setForm] = useState({
     cost_type: record.cost_type || "",
     channel: record.channel || "",
@@ -35,8 +37,6 @@ export default function BankRowEditor({ record, onSave, onCancel, onRemove }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSave = () => {
-    const amountOut = Number(record.amount_out || 0);
-    const amountIn = Number(record.amount_in || 0);
     const expenseRefund = form.cost_type === "Expense Refund" ? amountIn : 0;
 
     onSave({
