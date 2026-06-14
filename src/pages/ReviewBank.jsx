@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, RefreshCw, Wand2, RotateCcw } from "lucide-react";
+import { Search, RefreshCw, Wand2, RotateCcw, Plus } from "lucide-react";
 import BankRowEditor from "@/components/review/BankRowEditor";
 import { applyBankRule } from "@/lib/bankRulesEngine";
 
@@ -12,6 +12,23 @@ const BATCH_LIMIT = 10;
 
 function hasChanged(record, updates) {
   return Object.entries(updates).some(([k, v]) => String(record[k] ?? "") !== String(v ?? ""));
+}
+
+function monthFromDate(date) {
+  return String(date || "").slice(0, 7);
+}
+
+function financialFields(costType, amountIn, amountOut) {
+  const expenseRefund = costType === "Expense Refund" ? amountIn : 0;
+  return {
+    counted_expense: ["Operating Expense", "Shipping Cost", "Event Cost"].includes(costType) ? amountOut : (costType === "Expense Refund" ? -expenseRefund : 0),
+    shipping_cost: costType === "Shipping Cost" ? amountOut : 0,
+    operating_expenses: costType === "Operating Expense" ? amountOut : (costType === "Expense Refund" ? -expenseRefund : 0),
+    event_cost: costType === "Event Cost" ? amountOut : 0,
+    meat_purchase: costType === "Meat Purchase" ? amountOut : 0,
+    refund_amount: costType === "Refund" ? amountOut : 0,
+    expense_refund_amount: expenseRefund,
+  };
 }
 
 export default function ReviewBank() {
@@ -63,11 +80,45 @@ export default function ReviewBank() {
   const handleRemoveFromFinance = async (id) => {
     const confirmed = window.confirm("Remove this bank row from finance? Use this only for personal/non-business rows. It will be hidden from Review Bank and excluded from Dashboard calculations.");
     if (!confirmed) return;
-    const updates = { is_active: false, review_status: "Ignore", cost_type: "Ignore", counted_expense: 0, shipping_cost: 0, operating_expenses: 0, event_cost: 0, meat_purchase: 0, refund_amount: 0 };
+    const updates = { is_active: false, review_status: "Ignore", cost_type: "Ignore", counted_expense: 0, shipping_cost: 0, operating_expenses: 0, event_cost: 0, meat_purchase: 0, refund_amount: 0, expense_refund_amount: 0 };
     await base44.entities.BankTransaction.update(id, updates);
     setRecords(prev => prev.filter(r => r.id !== id));
     setEditingId(null);
     setApplyMessage({ type: "success", text: "Bank row removed from finance and excluded from the dashboard." });
+  };
+
+  const handleAddManualRow = async () => {
+    const defaultDate = selectedMonth && selectedMonth !== "all" ? `${selectedMonth}-01` : new Date().toISOString().slice(0, 10);
+    const date = window.prompt("Manual row date (YYYY-MM-DD)", defaultDate);
+    if (!date) return;
+    const amountRaw = window.prompt("Amount: positive = money in/refund, negative = money out/expense", "187.79");
+    if (!amountRaw) return;
+    const amount = Number(String(amountRaw).replace(",", "."));
+    if (!Number.isFinite(amount) || amount === 0) { alert("Invalid amount."); return; }
+    const reference = window.prompt("Description / reference", "Manual Diks refund to personal account") || "Manual bank adjustment";
+    const costType = window.prompt("Cost / cash type", amount > 0 ? "Expense Refund" : "Operating Expense") || (amount > 0 ? "Expense Refund" : "Operating Expense");
+    const channel = window.prompt("Channel", "Other") || "Other";
+    const amountIn = amount > 0 ? Math.abs(amount) : 0;
+    const amountOut = amount < 0 ? Math.abs(amount) : 0;
+    const month = monthFromDate(date) || selectedMonth;
+    const payload = {
+      date,
+      accounting_month: month,
+      month,
+      reference,
+      payment_ref: reference,
+      type: "Manual Adjustment",
+      amount_in: amountIn,
+      amount_out: amountOut,
+      cost_type: costType,
+      channel,
+      review_status: "OK",
+      is_active: true,
+      ...financialFields(costType, amountIn, amountOut),
+    };
+    const created = await base44.entities.BankTransaction.create(payload);
+    setRecords(prev => [created, ...prev]);
+    setApplyMessage({ type: "success", text: `Manual row added: ${costType} €${Math.abs(amount).toFixed(2)}.` });
   };
 
   const runClassification = async ({ includeOldIgnored = false } = {}) => {
@@ -79,6 +130,7 @@ export default function ReviewBank() {
     setApplyMessage(null);
 
     const candidates = filtered.filter(r => {
+      if (r.cost_type === "Manual Review") return false;
       if (r.review_status === "To review") return true;
       if (includeOldIgnored) return r.review_status === "Ignore" && (!r.cost_type || r.cost_type === "Ignore");
       return false;
@@ -104,10 +156,10 @@ export default function ReviewBank() {
         return u ? { ...r, ...u.updates } : r;
       }));
 
-      const remaining = Math.max(0, filtered.length - candidates.length);
+      const actionableRemaining = filtered.filter(r => r.cost_type !== "Manual Review" && (r.review_status === "To review" || (includeOldIgnored && r.review_status === "Ignore" && (!r.cost_type || r.cost_type === "Ignore")))).length - candidates.length;
       setApplyMessage({
-        type: remaining > 0 || stillReview > 0 ? "warning" : "success",
-        text: `${includeOldIgnored ? "Reprocessed" : "Classified"} ${candidates.length} row(s) for ${selectedMonth}. Updated: ${updatedRows.length}, OK: ${ok}, Ignored: ${ignored}, Still to review: ${stillReview}, unchanged: ${unchanged}. ${remaining > 0 ? `${remaining} row(s) remain in the current filter — click again to continue.` : "Done for the current filter."}`,
+        type: actionableRemaining > 0 || stillReview > 0 ? "warning" : "success",
+        text: `${includeOldIgnored ? "Reprocessed" : "Classified"} ${candidates.length} row(s) for ${selectedMonth}. Updated: ${updatedRows.length}, OK: ${ok}, Ignored: ${ignored}, Manual review: ${stillReview}, unchanged: ${unchanged}. ${actionableRemaining > 0 ? `${actionableRemaining} actionable row(s) remain — click again to continue.` : "Automatic classification done. Manual Review rows need your decision."}`,
       });
     } catch (err) {
       console.error("Failed to classify bank rows", err);
@@ -128,6 +180,7 @@ export default function ReviewBank() {
       ignore: visible.filter(r => r.review_status === "Ignore").length,
       oldGenericIgnore: visible.filter(r => r.review_status === "Ignore" && (!r.cost_type || r.cost_type === "Ignore")).length,
       operating: visible.reduce((s, r) => s + Number(r.operating_expenses || 0), 0),
+      expenseRefunds: visible.reduce((s, r) => s + Number(r.expense_refund_amount || 0), 0),
       shipping: visible.reduce((s, r) => s + Number(r.shipping_cost || 0), 0),
       event: visible.reduce((s, r) => s + Number(r.event_cost || 0), 0),
       purchases: visible.reduce((s, r) => s + Number(r.meat_purchase || 0), 0),
@@ -142,6 +195,7 @@ export default function ReviewBank() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div><h1 className="text-2xl font-bold">Review Bank Transactions</h1><p className="text-muted-foreground text-sm mt-1">{filtered.length} records shown</p></div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={handleAddManualRow}><Plus className="w-4 h-4 mr-2" /> Add Manual Row</Button>
           <Button variant="outline" size="sm" onClick={() => runClassification({ includeOldIgnored: false })} disabled={applying || records.length === 0 || selectedMonth === "all"}><Wand2 className="w-4 h-4 mr-2" /> {applying ? "Classifying…" : `Classify Next ${BATCH_LIMIT}`}</Button>
           <Button variant="outline" size="sm" onClick={() => runClassification({ includeOldIgnored: true })} disabled={applying || records.length === 0 || selectedMonth === "all"}><RotateCcw className="w-4 h-4 mr-2" /> Reprocess Next {BATCH_LIMIT}</Button>
           <Button variant="outline" size="sm" onClick={load}><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button>
@@ -152,17 +206,17 @@ export default function ReviewBank() {
         <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Rows</div><div className="font-semibold">{summary.rows}</div></div>
         <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">OK</div><div className="font-semibold text-green-700">{summary.ok}</div></div>
         <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">To review</div><div className="font-semibold text-yellow-700">{summary.review}</div></div>
-        <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Old generic ignore</div><div className="font-semibold text-amber-700">{summary.oldGenericIgnore}</div></div>
         <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Payouts cash</div><div className="font-semibold">€{summary.payouts.toFixed(2)}</div></div>
         <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Loans/paybacks</div><div className="font-semibold">€{summary.loansIn.toFixed(2)}</div></div>
-        <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Operating</div><div className="font-semibold">€{summary.operating.toFixed(2)}</div></div>
+        <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Operating net</div><div className="font-semibold">€{summary.operating.toFixed(2)}</div></div>
+        <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Expense refunds</div><div className="font-semibold">€{summary.expenseRefunds.toFixed(2)}</div></div>
         <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Meat purchases</div><div className="font-semibold">€{summary.purchases.toFixed(2)}</div></div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm"><div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Ignored total</div><div className="font-semibold text-slate-600">{summary.ignore}</div></div><div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Shipping</div><div className="font-semibold">€{summary.shipping.toFixed(2)}</div></div><div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Event</div><div className="font-semibold">€{summary.event.toFixed(2)}</div></div><div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Transfers/recon</div><div className="font-semibold">€{summary.transfers.toFixed(2)}</div></div></div>
       {selectedMonth === "all" && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Select one month before classifying bank rows. This prevents rate limits.</div>}
       {applyMessage && <div className={`rounded-lg border px-4 py-3 text-sm ${applyMessage.type === "success" ? "bg-green-50 border-green-200 text-green-800" : applyMessage.type === "error" ? "bg-red-50 border-red-200 text-red-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>{applyMessage.text}</div>}
-      <div className="rounded-lg border bg-slate-50 px-4 py-3 text-xs text-slate-700">Bank rows are cash movements. Card payouts should be “Payment Processor Payout” for reconciliation, not revenue. SumUp fees come from the SumUp Transaction Report. Loan/payback rows affect cash but not profit. Personal/non-business rows can be removed from finance while keeping imported data history.</div>
+      <div className="rounded-lg border bg-slate-50 px-4 py-3 text-xs text-slate-700">Diks logic: outgoing car charge is Operating Expense; incoming Diks refund is Expense Refund and reduces operating expenses. If a refund went to your personal account, use Add Manual Row with a positive amount and Cost Type = Expense Refund.</div>
 
       <div className="flex flex-wrap gap-3"><Select value={selectedMonth} onValueChange={setSelectedMonth}><SelectTrigger className="w-40"><SelectValue placeholder="Month" /></SelectTrigger><SelectContent>{availableMonths.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}<SelectItem value="all">All months</SelectItem></SelectContent></Select><Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem><SelectItem value="To review">To review</SelectItem><SelectItem value="OK">OK</SelectItem><SelectItem value="Ignore">Ignore</SelectItem></SelectContent></Select><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input className="pl-9 w-56" placeholder="Search reference/category..." value={search} onChange={e => setSearch(e.target.value)} /></div></div>
 
