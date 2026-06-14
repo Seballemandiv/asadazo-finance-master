@@ -41,6 +41,7 @@ export function validateAllRows(rows, mapping, importType, fallbackMonth) {
   }
 
   const dateSource = mapping[dateField];
+  const dateIsRequired = requiredEntityFields.includes(dateField);
 
   // Check 2: per-row validation
   const rowErrorCounts = new Set();
@@ -49,20 +50,23 @@ export function validateAllRows(rows, mapping, importType, fallbackMonth) {
     const rowNum = idx + 1;
     let rowHasError = false;
 
-    // Validate date field
+    // Validate date field only if it is mapped OR required
     if (dateSource) {
       const rawDate = row[dateSource];
       if (rawDate === undefined || rawDate === null || String(rawDate).trim() === "") {
-        errors.push({
-          rowNumber: rowNum,
-          column: dateSource,
-          rawValue: rawDate ?? "",
-          parsedValue: null,
-          errorType: "DATE_MISSING",
-          message: "Required date field is empty",
-          suggestedFix: "Ensure every row has a date value in the mapped date column.",
-        });
-        rowHasError = true;
+        if (dateIsRequired) {
+          errors.push({
+            rowNumber: rowNum,
+            column: dateSource,
+            rawValue: rawDate ?? "",
+            parsedValue: null,
+            errorType: "DATE_MISSING",
+            message: "Required date field is empty",
+            suggestedFix: "Ensure every row has a date value in the mapped date column.",
+          });
+          rowHasError = true;
+        }
+        // If not required, silently skip — fallback month will be used
       } else {
         const parsed = parseDate(rawDate);
         if (!parsed) {
@@ -78,6 +82,8 @@ export function validateAllRows(rows, mapping, importType, fallbackMonth) {
           rowHasError = true;
         }
       }
+    } else if (dateIsRequired) {
+      // Date is required but not mapped — already caught in mapping check above
     }
 
     // Validate numeric fields

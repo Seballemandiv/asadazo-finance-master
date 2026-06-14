@@ -1,29 +1,48 @@
 /**
  * Parse European and standard numeric/currency strings to JS numbers.
- * Handles: 1.234,56 → 1234.56 | €1.234,56 → 1234.56 | -25,00 → -25 | 25.50 → 25.50
+ *
+ * Correct behaviour:
+ *   "300,00"    → 300.00   (comma = decimal separator)
+ *   "1.234,56"  → 1234.56  (dot = thousands, comma = decimal)
+ *   "€1.234,56" → 1234.56
+ *   "-25,00"    → -25.00
+ *   "25.00"     → 25.00    (dot = decimal)
+ *   "30000.00"  → 30000.00 (only if raw value was truly 30000.00)
+ *   30000       → 30000    (JS number passthrough — no re-parse)
  */
 export function parseNumber(value) {
   if (value === null || value === undefined || value === "") return null;
-  if (typeof value === "number") return value;
+
+  // If already a JS number (e.g. from xlsx cell), return as-is — do NOT re-parse
+  if (typeof value === "number") return isNaN(value) ? null : value;
 
   let s = String(value).trim();
 
-  // Remove currency symbols and whitespace
-  s = s.replace(/[€$£¥\s]/g, "");
+  // Remove currency symbols and non-breaking spaces
+  s = s.replace(/[€$£¥\u00a0\s]/g, "");
   if (s === "" || s === "-") return null;
 
-  // Detect European format: has both . and , where . comes before ,
-  // e.g. "1.234,56" or "1.234.567,89"
-  if (/\d\.\d{3},\d/.test(s)) {
-    // European: remove dots (thousand sep), replace comma with dot
+  // Determine format:
+  // European: has both thousands-dot AND comma-decimal  e.g. "1.234,56" or "1.234.567,89"
+  if (/^\-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) {
+    // European thousands with optional comma decimal
     s = s.replace(/\./g, "").replace(",", ".");
-  } else if (/\d,\d{3}\.\d/.test(s)) {
-    // US: remove commas (thousand sep)
-    s = s.replace(/,/g, "");
-  } else {
-    // Single comma as decimal separator (e.g. "25,50" or "-12,00")
+  } else if (/,/.test(s) && !/\./.test(s)) {
+    // Only a comma, no dot → comma is decimal separator: "300,00" → "300.00"
     s = s.replace(",", ".");
+  } else if (/,/.test(s) && /\./.test(s)) {
+    // Has both: determine which is decimal by position of last separator
+    const lastDot = s.lastIndexOf(".");
+    const lastComma = s.lastIndexOf(",");
+    if (lastComma > lastDot) {
+      // comma is decimal: "1.234,56"
+      s = s.replace(/\./g, "").replace(",", ".");
+    } else {
+      // dot is decimal, comma is thousands: "1,234.56"
+      s = s.replace(/,/g, "");
+    }
   }
+  // else: plain dot decimal or integer — no change needed
 
   const n = parseFloat(s);
   return isNaN(n) ? null : n;
@@ -42,7 +61,7 @@ export function formatNumber(value) {
  * Check if a value looks like a number/amount
  */
 export function looksLikeNumber(value) {
-  if (typeof value === "number") return true;
-  const s = String(value ?? "").trim().replace(/[€$£¥\s]/g, "");
+  if (typeof value === "number") return !isNaN(value);
+  const s = String(value ?? "").trim().replace(/[€$£¥\u00a0\s]/g, "");
   return /^-?[\d.,]+$/.test(s) && s !== "";
 }

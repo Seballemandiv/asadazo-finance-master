@@ -75,7 +75,7 @@ export const IMPORT_CONFIGS = {
     label: "SumUp Article Report",
     description: "Export from SumUp → Reports → Items / Articles",
     targetFields: [
-      { key: "date", label: "Date", required: true },
+      { key: "date", label: "Date" },
       { key: "transaction_id", label: "Transaction ID" },
       { key: "product", label: "Product Name", required: true },
       { key: "sku", label: "SKU" },
@@ -88,7 +88,7 @@ export const IMPORT_CONFIGS = {
       { key: "payment_method", label: "Payment Method" },
     ],
     dateField: "date",
-    requiredFields: ["date", "product", "qty", "gross_inc_vat"],
+    requiredFields: ["product", "qty", "gross_inc_vat"],
     numericFields: ["qty", "gross_inc_vat", "net_ex_vat", "vat", "discount"],
     autoMap: {
       "datum": "date",

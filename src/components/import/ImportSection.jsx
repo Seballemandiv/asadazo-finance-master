@@ -43,13 +43,14 @@ export default function ImportSection({ importType, onImportDone }) {
   const [fallbackMonth, setFallbackMonth] = useState(MONTHS[0]);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null); // { success, rowCount, months, errors, summary }
+  const [saveError, setSaveError] = useState(null);
   const [dupWarning, setDupWarning] = useState(false);
 
   const reset = () => {
     setStage("upload");
     setFileName(""); setFileHash(""); setHeaders([]); setRows([]);
     setMapping({}); setFallbackMonth(MONTHS[0]); setSaving(false);
-    setResult(null); setDupWarning(false);
+    setResult(null); setSaveError(null); setDupWarning(false);
   };
 
   const handleFile = async (file) => {
@@ -84,13 +85,29 @@ export default function ImportSection({ importType, onImportDone }) {
   const handleSave = async () => {
     if (!validation?.valid) return;
     setSaving(true);
-    const res = await saveImportBatch({
-      importType, rows, mapping, filename: fileName, fileHash, fallbackMonth,
-    });
-    setSaving(false);
-    setResult({ success: true, rowCount: res.rowCount, months: res.months });
-    setStage("done");
-    onImportDone?.();
+    setSaveError(null);
+
+    // Timeout protection: 20 seconds
+    const timeoutId = setTimeout(() => {
+      setSaving(false);
+      setSaveError("Import timed out after 20 seconds. No rows were saved. Please retry or check console errors.");
+    }, 20000);
+
+    try {
+      const res = await saveImportBatch({
+        importType, rows, mapping, filename: fileName, fileHash, fallbackMonth,
+      });
+      clearTimeout(timeoutId);
+      setResult({ success: true, rowCount: res.rowCount, months: res.months });
+      setStage("done");
+      onImportDone?.();
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.error("Import save failed:", err);
+      setSaveError(err?.message || "Unknown error during save.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleRecordFailed = async () => {
@@ -205,6 +222,16 @@ export default function ImportSection({ importType, onImportDone }) {
               mapping={mapping}
               importType={importType}
             />
+
+            {/* Save error */}
+            {saveError && (
+              <div className="flex items-start gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-medium">Import failed: </span>{saveError}
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center gap-3 pt-2 flex-wrap">
               <Button
