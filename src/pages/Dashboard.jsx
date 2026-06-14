@@ -117,8 +117,8 @@ export default function Dashboard() {
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Finance Dashboard</h1>
-          <p className="text-muted-foreground text-sm mt-1">Asadazo · Revenue & Cost Overview</p>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard Online-shop</h1>
+          <p className="text-muted-foreground text-sm mt-1">Asadazo · Online Shop Revenue & Cost Overview</p>
         </div>
         <Select value={selectedMonth || "all"} onValueChange={setSelectedMonth}>
           <SelectTrigger className="w-52"><SelectValue placeholder="Select month" /></SelectTrigger>
@@ -131,9 +131,13 @@ export default function Dashboard() {
 
       {(metrics.salesPendingReview > 0 || metrics.bankPendingReview > 0) && <ReviewAlert salesCount={metrics.salesPendingReview} bankCount={metrics.bankPendingReview} />}
 
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        Events are excluded from this online-shop profit view. Excluded this month: event revenue €{(metrics.eventRevenueExcluded || 0).toFixed(2)} and event costs €{(metrics.eventCostsExcluded || 0).toFixed(2)}. Use Dashboard Events for event profitability.
+      </div>
+
       {filteredSales.length > 0 && metrics.unmappedCogs > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          ⚠ COGS incomplete — {metrics.unmappedCogs} sales row(s) have Meat/Box revenue type but missing kg or cost mapping. Go to Review Sales to fix.
+          ⚠ COGS incomplete — {metrics.unmappedCogs} online-shop sales row(s) have Meat/Box revenue type but missing kg or cost mapping. Go to Review Sales to fix.
         </div>
       )}
 
@@ -145,8 +149,8 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard title="Net Revenue (ex VAT)" value={`€${metrics.totalRevenue.toFixed(2)}`} icon={TrendingUp} color="green" />
-        <MetricCard title="Total P&L Costs" value={`€${metrics.totalCosts.toFixed(2)}`} icon={TrendingDown} color="red" />
-        <MetricCard title="Operating Profit" value={`€${metrics.operatingProfit.toFixed(2)}`} icon={ShoppingBag} color={metrics.operatingProfit >= 0 ? "green" : "red"} subtitle={`Margin: ${metrics.marginPct.toFixed(1)}%`} />
+        <MetricCard title="Total Online P&L Costs" value={`€${metrics.totalCosts.toFixed(2)}`} icon={TrendingDown} color="red" />
+        <MetricCard title="Online Operating Profit" value={`€${metrics.operatingProfit.toFixed(2)}`} icon={ShoppingBag} color={metrics.operatingProfit >= 0 ? "green" : "red"} subtitle={`Margin: ${metrics.marginPct.toFixed(1)}%`} />
         <MetricCard title="Gross Profit after COGS" value={`€${metrics.grossProfit.toFixed(2)}`} icon={Package} color={metrics.grossProfit >= 0 ? "green" : "red"} subtitle={`Gross margin: ${metrics.grossMarginPct.toFixed(1)}%`} />
       </div>
 
@@ -167,18 +171,17 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard title="Shipping Costs" value={`€${metrics.shippingCosts.toFixed(2)}`} icon={Truck} color="slate" small />
         <MetricCard title="Operating Expenses" value={`€${metrics.operatingExpenses.toFixed(2)}`} icon={TrendingDown} color="slate" small />
-        <MetricCard title="Event Costs" value={`€${metrics.eventCosts.toFixed(2)}`} icon={Calendar} color="slate" small />
         <MetricCard title="Meat Purchases (cash)" value={`€${metrics.meatPurchases.toFixed(2)}`} icon={Package} color="slate" small />
+        <MetricCard title="Processor Payouts (cash)" value={`€${(metrics.paymentProcessorPayouts || 0).toFixed(2)}`} icon={TrendingUp} color="slate" small />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Processor Payouts (cash)" value={`€${(metrics.paymentProcessorPayouts || 0).toFixed(2)}`} icon={TrendingUp} color="slate" small />
         <MetricCard title="Loans / Paybacks (cash)" value={`€${(metrics.loanInPayback || 0).toFixed(2)}`} icon={TrendingUp} color="slate" small />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <RevenueBreakdown metrics={metrics} />
-        <ChannelBreakdown sales={filteredSales} />
+        <ChannelBreakdown sales={filteredSales.filter(r => r.channel !== "Event" && r.revenue_type !== "Event")} />
       </div>
 
       <div className="border rounded-lg overflow-hidden">
