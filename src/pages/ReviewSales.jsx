@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, RefreshCw, Wand2 } from "lucide-react";
 import SalesRowEditor from "@/components/review/SalesRowEditor";
-import {
-  buildMappingIndex,
-  calculateSalesMappingUpdates,
-  findProductMapping,
-  getSalesNetExVat,
-} from "@/lib/cogsEngine";
+import { buildMappingIndex, calculateSalesMappingUpdates, findProductMapping, getSalesNetExVat } from "@/lib/cogsEngine";
+
+const BATCH_LIMIT = 10;
+
+function hasChanged(record, updates) {
+  return Object.entries(updates).some(([k, v]) => String(record[k] ?? "") !== String(v ?? ""));
+}
 
 export default function ReviewSales() {
   const [records, setRecords] = useState([]);
@@ -35,19 +36,15 @@ export default function ReviewSales() {
       base44.entities.MonthlyProductPrice.list("-month", 5000),
       base44.entities.CutCost.list(),
     ]);
-    // Only sumup_sales batches drive Review Sales
-    const activeBatchIds = new Set(
-      activeBatches.filter(b => b.import_type === "sumup_sales").map(b => b.id)
-    );
-    const activeRecs = recs.filter(r =>
-      r.is_active !== false &&
-      r.import_batch_id &&
-      activeBatchIds.has(r.import_batch_id)
-    );
+    const activeBatchIds = new Set(activeBatches.filter(b => b.import_type === "sumup_sales").map(b => b.id));
+    const activeRecs = recs.filter(r => r.is_active !== false && r.import_batch_id && activeBatchIds.has(r.import_batch_id));
     setRecords(activeRecs);
     setMappings(maps);
     setPriceRows(prices);
     setCutCosts(cuts);
+
+    const months = Array.from(new Set(activeRecs.map(r => r.accounting_month || r.month).filter(Boolean))).sort().reverse();
+    if ((selectedMonth === "all" || !selectedMonth) && months.length > 0) setSelectedMonth(months[0]);
     setLoading(false);
   };
 
@@ -76,36 +73,34 @@ export default function ReviewSales() {
   };
 
   const handleApplyProductMappings = async () => {
+    if (selectedMonth === "all") {
+      setApplyMessage({ type: "error", text: "Select one month first. To avoid Base44 rate limits, mappings are applied month by month." });
+      return;
+    }
+
     setApplying(true);
     setApplyMessage(null);
 
     const mappingIndex = buildMappingIndex(mappings);
-    const targetRecords = records.filter(r => {
-      const recMonth = r.accounting_month || r.month;
-      return selectedMonth === "all" || recMonth === selectedMonth;
-    });
+    const candidates = filtered.filter(r => r.mapping_status !== "OK").slice(0, BATCH_LIMIT);
 
-    let matched = 0;
-    let ok = 0;
-    let toReview = 0;
-    let ignored = 0;
-    let noMapping = 0;
-    let updatedRows = [];
+    let matched = 0, ok = 0, toReview = 0, ignored = 0, noMapping = 0, skippedNoChange = 0;
+    const updatedRows = [];
 
     try {
-      for (const record of targetRecords) {
+      for (const record of candidates) {
         const mapping = findProductMapping(record, mappingIndex);
-        if (!mapping) {
-          noMapping++;
-          continue;
-        }
+        if (!mapping) { noMapping++; continue; }
 
         const updates = calculateSalesMappingUpdates(record, mapping, priceRows);
-        await base44.entities.SalesRecord.update(record.id, updates);
         matched++;
         if (updates.mapping_status === "OK") ok++;
         else if (updates.mapping_status === "Ignore") ignored++;
         else toReview++;
+
+        if (!hasChanged(record, updates)) { skippedNoChange++; continue; }
+
+        await base44.entities.SalesRecord.update(record.id, updates);
         updatedRows.push({ id: record.id, updates });
       }
 
@@ -114,28 +109,23 @@ export default function ReviewSales() {
         return u ? { ...r, ...u.updates } : r;
       }));
 
+      const remaining = Math.max(0, filtered.filter(r => r.mapping_status !== "OK").length - candidates.length);
       setApplyMessage({
-        type: noMapping > 0 || toReview > 0 ? "warning" : "success",
-        text: `Applied product mappings to ${matched} row(s). OK: ${ok}, To review: ${toReview}, Ignored: ${ignored}, No mapping found: ${noMapping}.`,
+        type: remaining > 0 || noMapping > 0 || toReview > 0 ? "warning" : "success",
+        text: `Processed ${candidates.length} row(s) for ${selectedMonth}. Updated: ${updatedRows.length}, OK: ${ok}, To review: ${toReview}, Ignored: ${ignored}, No mapping: ${noMapping}, unchanged: ${skippedNoChange}. ${remaining > 0 ? `${remaining} row(s) remain — click again to continue.` : "Done for the current filter."}`,
       });
     } catch (err) {
       console.error("Failed to apply product mappings", err);
-      setApplyMessage({ type: "error", text: err?.message || "Failed to apply product mappings." });
+      setApplyMessage({ type: "error", text: `${err?.message || "Failed to apply product mappings."} Try again in 30 seconds; only ${BATCH_LIMIT} rows are processed per click now.` });
     } finally {
       setApplying(false);
     }
   };
 
-  const statusBadge = {
-    "OK": "bg-green-100 text-green-800",
-    "To review": "bg-yellow-100 text-yellow-800",
-    "Ignore": "bg-slate-100 text-slate-600",
-  };
+  const statusBadge = { "OK": "bg-green-100 text-green-800", "To review": "bg-yellow-100 text-yellow-800", "Ignore": "bg-slate-100 text-slate-600" };
 
   const summary = useMemo(() => {
-    const visible = selectedMonth === "all"
-      ? records
-      : records.filter(r => (r.accounting_month || r.month) === selectedMonth);
+    const visible = selectedMonth === "all" ? records : records.filter(r => (r.accounting_month || r.month) === selectedMonth);
     return {
       total: visible.length,
       ok: visible.filter(r => r.mapping_status === "OK").length,
@@ -149,17 +139,12 @@ export default function ReviewSales() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Review Sales Records</h1>
-          <p className="text-muted-foreground text-sm mt-1">{filtered.length} records shown</p>
-        </div>
+        <div><h1 className="text-2xl font-bold">Review Sales Records</h1><p className="text-muted-foreground text-sm mt-1">{filtered.length} records shown</p></div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={handleApplyProductMappings} disabled={applying || records.length === 0}>
-            <Wand2 className="w-4 h-4 mr-2" /> {applying ? "Applying…" : "Apply Product Mappings"}
+          <Button variant="outline" size="sm" onClick={handleApplyProductMappings} disabled={applying || records.length === 0 || selectedMonth === "all"}>
+            <Wand2 className="w-4 h-4 mr-2" /> {applying ? "Applying…" : `Apply Next ${BATCH_LIMIT}`}
           </Button>
-          <Button variant="outline" size="sm" onClick={load}>
-            <RefreshCw className="w-4 h-4 mr-2" /> Refresh
-          </Button>
+          <Button variant="outline" size="sm" onClick={load}><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button>
         </div>
       </div>
 
@@ -171,98 +156,17 @@ export default function ReviewSales() {
         <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Meat COGS</div><div className="font-semibold">€{summary.cogs.toFixed(2)}</div></div>
       </div>
 
-      {applyMessage && (
-        <div className={`rounded-lg border px-4 py-3 text-sm ${
-          applyMessage.type === "success" ? "bg-green-50 border-green-200 text-green-800" :
-          applyMessage.type === "error" ? "bg-red-50 border-red-200 text-red-800" :
-          "bg-amber-50 border-amber-200 text-amber-800"
-        }`}>
-          {applyMessage.text}
-        </div>
-      )}
+      {selectedMonth === "all" && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Select one month before applying mappings. This prevents rate limits and keeps COGS linked to the correct month.</div>}
 
-      {/* Filters */}
+      {applyMessage && <div className={`rounded-lg border px-4 py-3 text-sm ${applyMessage.type === "success" ? "bg-green-50 border-green-200 text-green-800" : applyMessage.type === "error" ? "bg-red-50 border-red-200 text-red-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>{applyMessage.text}</div>}
+
       <div className="flex flex-wrap gap-3">
-        <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Month" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All months</SelectItem>
-            {availableMonths.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="To review">To review</SelectItem>
-            <SelectItem value="OK">OK</SelectItem>
-            <SelectItem value="Ignore">Ignore</SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            className="pl-9 w-56"
-            placeholder="Search product..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
+        <Select value={selectedMonth} onValueChange={setSelectedMonth}><SelectTrigger className="w-40"><SelectValue placeholder="Month" /></SelectTrigger><SelectContent>{availableMonths.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}<SelectItem value="all">All months</SelectItem></SelectContent></Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem><SelectItem value="To review">To review</SelectItem><SelectItem value="OK">OK</SelectItem><SelectItem value="Ignore">Ignore</SelectItem></SelectContent></Select>
+        <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input className="pl-9 w-56" placeholder="Search product..." value={search} onChange={e => setSearch(e.target.value)} /></div>
       </div>
 
-      <Card>
-        <CardContent className="overflow-x-auto p-0">
-          {loading ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="w-6 h-6 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-            </div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-muted text-muted-foreground text-xs">
-                <tr>
-                  {["Date", "Product", "Qty", "Net (ex VAT)", "Channel", "Rev Type", "Cut", "kg/unit", "Cost/kg", "Price Month", "COGS", "Status", ""].map(h => (
-                    <th key={h} className="px-3 py-2 text-left font-medium whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(r => (
-                  editingId === r.id ? (
-                    <SalesRowEditor
-                      key={r.id}
-                      record={r}
-                      mappings={mappings}
-                      cutCosts={cutCosts}
-                      onSave={updates => handleUpdate(r.id, updates)}
-                      onCancel={() => setEditingId(null)}
-                    />
-                  ) : (
-                    <tr key={r.id} className="border-t hover:bg-muted/20 cursor-pointer" onClick={() => setEditingId(r.id)} title={r.cost_source || ""}>
-                      <td className="px-3 py-2 whitespace-nowrap text-xs">{(r.transaction_date || r.date)?.slice(0, 10)}</td>
-                      <td className="px-3 py-2 max-w-[200px] truncate">{r.product_name || r.product}</td>
-                      <td className="px-3 py-2">{r.quantity ?? r.qty}</td>
-                      <td className="px-3 py-2">€{getSalesNetExVat(r).toFixed(2)}</td>
-                      <td className="px-3 py-2">{r.channel}</td>
-                      <td className="px-3 py-2">{r.revenue_type}</td>
-                      <td className="px-3 py-2">{r.cut}</td>
-                      <td className="px-3 py-2">{r.kg_per_unit}</td>
-                      <td className="px-3 py-2">€{Number(r.cost_per_kg || 0).toFixed(2)}</td>
-                      <td className="px-3 py-2">{r.price_month}</td>
-                      <td className="px-3 py-2">€{(r.meat_cogs || 0).toFixed(2)}</td>
-                      <td className="px-3 py-2">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge[r.mapping_status] || ""}`}>
-                          {r.mapping_status}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">Edit</td>
-                    </tr>
-                  )
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
-      </Card>
+      <Card><CardContent className="overflow-x-auto p-0">{loading ? <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" /></div> : <table className="w-full text-sm"><thead className="bg-muted text-muted-foreground text-xs"><tr>{["Date", "Product", "Qty", "Net (ex VAT)", "Channel", "Rev Type", "Cut", "kg/unit", "Cost/kg", "Price Month", "COGS", "Status", ""].map(h => <th key={h} className="px-3 py-2 text-left font-medium whitespace-nowrap">{h}</th>)}</tr></thead><tbody>{filtered.map(r => editingId === r.id ? <SalesRowEditor key={r.id} record={r} mappings={mappings} cutCosts={cutCosts} onSave={updates => handleUpdate(r.id, updates)} onCancel={() => setEditingId(null)} /> : <tr key={r.id} className="border-t hover:bg-muted/20 cursor-pointer" onClick={() => setEditingId(r.id)} title={r.cost_source || ""}><td className="px-3 py-2 whitespace-nowrap text-xs">{(r.transaction_date || r.date)?.slice(0, 10)}</td><td className="px-3 py-2 max-w-[200px] truncate">{r.product_name || r.product}</td><td className="px-3 py-2">{r.quantity ?? r.qty}</td><td className="px-3 py-2">€{getSalesNetExVat(r).toFixed(2)}</td><td className="px-3 py-2">{r.channel}</td><td className="px-3 py-2">{r.revenue_type}</td><td className="px-3 py-2">{r.cut}</td><td className="px-3 py-2">{r.kg_per_unit}</td><td className="px-3 py-2">€{Number(r.cost_per_kg || 0).toFixed(2)}</td><td className="px-3 py-2">{r.price_month}</td><td className="px-3 py-2">€{(r.meat_cogs || 0).toFixed(2)}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge[r.mapping_status] || ""}`}>{r.mapping_status}</span></td><td className="px-3 py-2 text-xs text-muted-foreground">Edit</td></tr>)}</tbody></table>}</CardContent></Card>
     </div>
   );
 }
