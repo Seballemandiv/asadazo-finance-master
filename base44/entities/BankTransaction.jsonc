@@ -21,6 +21,8 @@
       "type": "string",
       "enum": [
         "Operating Expense",
+        "Car rental NL",
+        "Transport Spain to Amsterdam",
         "Expense Refund",
         "Shipping Cost",
         "Event Cost",
@@ -35,18 +37,13 @@
         "Ignore"
       ]
     },
-    "channel": {
-      "type": "string",
-      "enum": ["Online Shop", "Event", "Wholesale", "Other"]
-    },
-    "review_status": {
-      "type": "string",
-      "enum": ["OK", "To review", "Ignore"],
-      "default": "To review"
-    },
+    "channel": { "type": "string", "enum": ["Online Shop", "Event", "Wholesale", "Other"] },
+    "review_status": { "type": "string", "enum": ["OK", "To review", "Ignore"], "default": "To review" },
     "counted_expense": { "type": "number", "default": 0 },
     "shipping_cost": { "type": "number", "default": 0 },
     "operating_expenses": { "type": "number", "default": 0 },
+    "car_rental_nl": { "type": "number", "default": 0 },
+    "transport_spain_to_amsterdam": { "type": "number", "default": 0 },
     "event_cost": { "type": "number", "default": 0 },
     "meat_purchase": { "type": "number", "default": 0 },
     "refund_amount": { "type": "number", "default": 0 },
