@@ -12,16 +12,34 @@ export function computeMetrics(sales, bank) {
   // Revenue — only non-ignored sales records
   const activeSales = sales.filter(r => r.mapping_status !== "Ignore");
 
-  const productRevenue   = activeSales.reduce((s, r) => s + (r.product_revenue_ex_vat || 0), 0);
-  const shippingRevenue  = activeSales.reduce((s, r) => s + (r.shipping_revenue_ex_vat || 0), 0);
-  const eventRevenue     = activeSales.reduce((s, r) => s + (r.event_revenue_ex_vat || 0), 0);
-  const otherRevenue     = activeSales.reduce((s, r) => s + (r.other_revenue_ex_vat || 0), 0);
+  // Per-row net amount: prefer net_amount_ex_vat, fall back to net_ex_vat, then gross - vat
+  function rowNet(r) {
+    if (r.net_amount_ex_vat != null && r.net_amount_ex_vat !== 0) return r.net_amount_ex_vat;
+    if (r.net_ex_vat != null && r.net_ex_vat !== 0) return r.net_ex_vat;
+    const gross = r.gross_amount_inc_vat || r.gross_inc_vat || 0;
+    const vat = r.vat_amount || r.vat || 0;
+    return gross - vat;
+  }
 
-  // If revenue buckets not yet filled (no mapping applied), fall back to net_ex_vat / net_amount_ex_vat
-  const bucketTotal = productRevenue + shippingRevenue + eventRevenue + otherRevenue;
-  const totalRevenue = bucketTotal > 0
-    ? bucketTotal
-    : activeSales.reduce((s, r) => s + (r.net_amount_ex_vat || r.net_ex_vat || 0), 0);
+  // Revenue buckets — use mapped bucket fields if filled, else fall back to rowNet
+  const productRevenue = activeSales
+    .filter(r => r.revenue_type === "Meat" || r.revenue_type === "Box")
+    .reduce((s, r) => s + (r.product_revenue_ex_vat || rowNet(r)), 0);
+
+  const shippingRevenue = activeSales
+    .filter(r => r.revenue_type === "Shipping")
+    .reduce((s, r) => s + (r.shipping_revenue_ex_vat || rowNet(r)), 0);
+
+  const eventRevenue = activeSales
+    .filter(r => r.revenue_type === "Event")
+    .reduce((s, r) => s + (r.event_revenue_ex_vat || rowNet(r)), 0);
+
+  const otherRevenue = activeSales
+    .filter(r => r.revenue_type === "Custom Revenue" || r.revenue_type === "Other Revenue")
+    .reduce((s, r) => s + (r.other_revenue_ex_vat || rowNet(r)), 0);
+
+  // Total = sum of all active rows net (provisionally — before mapping applied)
+  const totalRevenue = activeSales.reduce((s, r) => s + rowNet(r), 0);
 
   const salesIncVat = activeSales.reduce((s, r) => s + (r.gross_amount_inc_vat || r.gross_inc_vat || 0), 0);
 

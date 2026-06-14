@@ -32,7 +32,8 @@ export default function ReviewSales() {
     );
     const activeRecs = recs.filter(r =>
       r.is_active !== false &&
-      (!r.import_batch_id || activeBatchIds.has(r.import_batch_id))
+      r.import_batch_id &&
+      activeBatchIds.has(r.import_batch_id)
     );
     setRecords(activeRecs);
     setMappings(maps);
