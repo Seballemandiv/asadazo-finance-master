@@ -22,14 +22,13 @@ function isRateLimitError(err) {
 
 async function runWithRetry(fn) {
   let lastError;
-  for (let attempt = 1; attempt <= 7; attempt++) {
+  for (let attempt = 1; attempt <= 8; attempt++) {
     try {
       return await fn();
     } catch (err) {
       lastError = err;
-      if (!isRateLimitError(err) || attempt === 7) break;
-      // Progressive backoff: 0.9s, 3.6s, 8.1s, 14.4s, 22.5s, 32.4s
-      await sleep(900 * attempt * attempt);
+      if (!isRateLimitError(err) || attempt === 8) break;
+      await sleep(1500 * attempt * attempt);
     }
   }
   throw lastError;
@@ -38,9 +37,7 @@ async function runWithRetry(fn) {
 function queueWrite(fn) {
   const task = writeQueue.then(async () => {
     const result = await runWithRetry(fn);
-    // Keep write operations spaced out. This prevents review/apply flows and imports
-    // from bursting hundreds of create/update/delete calls into Base44 at once.
-    await sleep(180);
+    await sleep(900);
     return result;
   });
   writeQueue = task.catch(() => {});
@@ -75,6 +72,4 @@ function patchEntityWrites(client) {
   return client;
 }
 
-// Export a patched client so large imports, product mapping, bank classification,
-// reverts, and delete/hide actions do not trigger Base44 rate limits.
 export const base44 = patchEntityWrites(rawBase44);
