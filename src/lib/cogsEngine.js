@@ -21,7 +21,6 @@ export function getSalesQuantity(record) {
 export function getSalesNetExVat(record) {
   const net = parseNumber(record?.net_amount_ex_vat ?? record?.net_ex_vat);
   if (net !== null) return net;
-
   const gross = parseNumber(record?.gross_amount_inc_vat ?? record?.gross_inc_vat) ?? 0;
   const vat = parseNumber(record?.vat_amount ?? record?.vat) ?? 0;
   return gross - vat;
@@ -34,27 +33,20 @@ export function parseKgFromProductName(productName) {
   return parseNumber(match[1]) ?? 0;
 }
 
+function isCustomProduct(productName) {
+  const n = normalizeProductName(productName);
+  return n.includes("custom amount") || n === "custom" || n.includes("custom revenue");
+}
+
 export function inferMappingDefaults(productName, priceRows = []) {
   const normalized = normalizeProductName(productName);
   const kgFromName = parseKgFromProductName(productName);
-
-  const isShipping = [
-    "dhl", "delivery", "deliver", "shipping", "the netherlands", "netherlands",
-    "amsterdam inside", "amsterdam outside", "inside the ring", "outside the ring",
-  ].some(k => normalized.includes(k));
-
+  const isShipping = ["dhl", "delivery", "deliver", "shipping", "the netherlands", "netherlands", "amsterdam inside", "amsterdam outside", "inside the ring", "outside the ring"].some(k => normalized.includes(k));
   const isPickup = ["pick up", "pickup", "afhalen", "location", "winkel"].some(k => normalized.includes(k));
-  const isCustom = normalized.includes("custom amount") || normalized.includes("custom");
 
-  if (isPickup) {
-    return { revenue_type: "Other Revenue", channel: "Online Shop", cut: "Pickup", kg_per_unit: 0, cost_per_kg: 0, status: "Ignore", notes: "Auto-created from sales import. Pickup row should normally be ignored." };
-  }
-  if (isShipping) {
-    return { revenue_type: "Shipping", channel: "Online Shop", cut: "Shipping", kg_per_unit: 0, cost_per_kg: 0, status: "OK", notes: "Auto-created from sales import. Shipping revenue has no meat COGS." };
-  }
-  if (isCustom) {
-    return { revenue_type: "Custom Revenue", channel: "Online Shop", cut: "Custom", kg_per_unit: 0, cost_per_kg: 0, status: "To review", notes: "Auto-created from sales import. Review what this custom amount represents." };
-  }
+  if (isPickup) return { revenue_type: "Other Revenue", channel: "Online Shop", cut: "Pickup", kg_per_unit: 0, cost_per_kg: 0, status: "Ignore", notes: "Pickup row." };
+  if (isShipping) return { revenue_type: "Shipping", channel: "Online Shop", cut: "Shipping", kg_per_unit: 0, cost_per_kg: 0, status: "OK", notes: "Shipping revenue." };
+  if (isCustomProduct(productName)) return { revenue_type: "Custom Revenue", channel: "Online Shop", cut: "Custom", kg_per_unit: 0, cost_per_kg: 0, status: "OK", notes: "Custom revenue, no COGS." };
 
   const cut = inferCutName(productName);
   const price = findMonthlyPrice({ product_name: productName, kg_per_unit: kgFromName, cut }, priceRows, { cut, kg_per_unit: kgFromName });
@@ -69,11 +61,7 @@ export function inferMappingDefaults(productName, priceRows = []) {
     kg_per_unit: kg,
     cost_per_kg: costPerKg,
     status: kg > 0 ? "OK" : "To review",
-    notes: price
-      ? `Auto-created from sales import. Cost/kg suggested from Monthly Prices (${price.month || "no month"}).`
-      : kg > 0
-        ? "Auto-created from sales import. Kg/unit was inferred from the product name. Monthly Prices will supply COGS when available."
-        : "Auto-created from sales import. Add kg/unit; Monthly Prices will supply COGS when available.",
+    notes: price ? `Cost/kg from Monthly Prices (${price.month}).` : "Add kg/unit or monthly price.",
   };
 }
 
@@ -86,8 +74,7 @@ function inferCutName(productName) {
     ["chinchulin", "Chinchulín"], ["chinchu", "Chinchulín"], ["matambre", "Matambre"],
     ["bondiola", "Bondiola"], ["salchicha", "Salchicha parrillera"], ["milanesa", "Milanesa"],
     ["colita", "Colita de cuadril"], ["lomo", "Lomo"], ["costillar", "Costillar"],
-    ["medialuna", "Vacío"], ["hamburguesa", "Hamburguesa"], ["provoleta", "Provoleta"],
-    ["peceto", "Peceto"],
+    ["medialuna", "Vacío"], ["hamburguesa", "Hamburguesa"], ["provoleta", "Provoleta"], ["peceto", "Peceto"],
   ];
   const found = cutRules.find(([needle]) => normalized.includes(needle));
   if (found) return found[1];
@@ -143,33 +130,46 @@ function scorePriceCandidate(price, productKey, cutKey, targetKg) {
   return score;
 }
 
-function chooseBestMonthPrice(candidates, saleMonth) {
-  if (!candidates.length) return null;
-  const withMonth = candidates.filter(c => c.price.month);
-  if (!saleMonth || !withMonth.length) return candidates.sort((a, b) => (b.price.month || "").localeCompare(a.price.month || "") || b.score - a.score)[0]?.price || null;
-  const exact = candidates.filter(c => c.price.month === saleMonth);
-  if (exact.length) return exact.sort((a, b) => b.score - a.score)[0].price;
-  const previous = withMonth.filter(c => c.price.month <= saleMonth);
-  if (previous.length) return previous.sort((a, b) => (b.price.month || "").localeCompare(a.price.month || "") || b.score - a.score)[0].price;
-  return withMonth.sort((a, b) => (b.price.month || "").localeCompare(a.price.month || "") || b.score - a.score)[0].price;
-}
-
 export function findMonthlyPrice(record, priceRows = [], mapping = null) {
   const productName = getSalesProductName(record);
   const productKey = normalizeProductName(productName);
   const cutKey = normalizeProductName(mapping?.cut || record?.cut || inferCutName(productName));
   const targetKg = parseNumber(mapping?.kg_per_unit ?? record?.kg_per_unit) || parseKgFromProductName(productName) || 0;
   const saleMonth = record?.accounting_month || record?.month || "";
+  if (!saleMonth) return null;
+
   const candidates = (priceRows || [])
-    .filter(p => p && (p.status === undefined || p.status === "OK" || p.status === "Active"))
+    .filter(p => p && p.month === saleMonth && (p.status === undefined || p.status === "OK" || p.status === "Active"))
     .map(price => ({ price, score: scorePriceCandidate(price, productKey, cutKey, targetKg) }))
-    .filter(c => c.score >= 200 && getPriceCostPerKg(c.price) > 0);
-  return chooseBestMonthPrice(candidates, saleMonth);
+    .filter(c => c.score >= 200 && getPriceCostPerKg(c.price) > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return candidates[0]?.price || null;
 }
 
 export function calculateSalesMappingUpdates(record, mapping, priceRows = []) {
-  if (!mapping) return { mapping_status: "To review", review_flag: "1" };
   const net = getSalesNetExVat(record);
+  const productName = getSalesProductName(record);
+
+  if (isCustomProduct(productName)) {
+    return {
+      revenue_type: "Custom Revenue",
+      channel: "Online Shop",
+      cut: "Custom",
+      kg_per_unit: 0,
+      cost_per_kg: 0,
+      meat_cogs: 0,
+      product_revenue_ex_vat: net,
+      shipping_revenue_ex_vat: 0,
+      event_revenue_ex_vat: 0,
+      other_revenue_ex_vat: 0,
+      mapping_status: "OK",
+      review_flag: "0",
+    };
+  }
+
+  if (!mapping) return { mapping_status: "To review", review_flag: "1" };
+
   const qty = getSalesQuantity(record) || 0;
   const revenueType = mapping.revenue_type || "";
   const price = findMonthlyPrice(record, priceRows, mapping);
