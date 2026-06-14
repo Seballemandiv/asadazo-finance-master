@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Upload, FileText, Table2, ChevronLeft, ChevronRight, Menu, X } from "lucide-react";
+import { LayoutDashboard, Upload, FileText, Table2, ChevronLeft, ChevronRight, Menu, X, Calendar, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { label: "Dashboard", path: "/", icon: LayoutDashboard },
+  { label: "Dashboard Online-shop", path: "/", icon: LayoutDashboard },
+  { label: "Dashboard Events", path: "/dashboard-events", icon: Calendar },
+  { label: "Stock", path: "/stock", icon: Package },
   { label: "Import Center", path: "/import", icon: Upload },
   { label: "Review Sales", path: "/review-sales", icon: FileText },
   { label: "Review Bank", path: "/review-bank", icon: FileText },
@@ -17,7 +19,7 @@ export default function AppLayout() {
   const { pathname } = useLocation();
 
   const NavItem = ({ item }) => {
-    const active = pathname === item.path;
+    const active = pathname === item.path || (item.path === "/" && pathname === "/dashboard-online-shop");
     const Icon = item.icon;
     return (
       <Link
@@ -39,7 +41,7 @@ export default function AppLayout() {
   const Sidebar = ({ mobile }) => (
     <div className={cn(
       "flex flex-col h-full",
-      mobile ? "w-64 p-4" : collapsed ? "w-16 p-2" : "w-56 p-4"
+      mobile ? "w-64 p-4" : collapsed ? "w-16 p-2" : "w-64 p-4"
     )}>
       <div className={cn("flex items-center mb-6", collapsed && !mobile ? "justify-center" : "justify-between")}>
         {(!collapsed || mobile) && (
@@ -59,15 +61,13 @@ export default function AppLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {/* Desktop sidebar */}
       <aside className={cn(
         "hidden md:flex flex-col border-r bg-card transition-all duration-200",
-        collapsed ? "w-16" : "w-56"
+        collapsed ? "w-16" : "w-64"
       )}>
         <Sidebar />
       </aside>
 
-      {/* Mobile overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
@@ -77,9 +77,7 @@ export default function AppLayout() {
         </div>
       )}
 
-      {/* Main content */}
       <main className="flex-1 overflow-auto">
-        {/* Mobile header */}
         <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b bg-card sticky top-0 z-10">
           <button onClick={() => setMobileOpen(true)} className="p-1 rounded hover:bg-muted">
             <Menu className="w-5 h-5" />
