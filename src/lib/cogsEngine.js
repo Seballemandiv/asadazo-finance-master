@@ -34,9 +34,9 @@ export function parseKgFromProductName(productName) {
   return parseNumber(match[1]) ?? 0;
 }
 
-export function inferMappingDefaults(productName) {
+export function inferMappingDefaults(productName, priceRows = []) {
   const normalized = normalizeProductName(productName);
-  const kg = parseKgFromProductName(productName);
+  const kgFromName = parseKgFromProductName(productName);
 
   const isShipping = [
     "dhl",
@@ -97,16 +97,24 @@ export function inferMappingDefaults(productName) {
     };
   }
 
+  const cut = inferCutName(productName);
+  const price = findMonthlyPrice({ product_name: productName, kg_per_unit: kgFromName, cut }, priceRows, { cut, kg_per_unit: kgFromName });
+  const kgFromPrice = parseNumber(price?.kg_per_unit) ?? 0;
+  const costPerKg = getPriceCostPerKg(price) || 0;
+  const kg = kgFromName || kgFromPrice;
+
   return {
     revenue_type: "Meat",
     channel: "Online Shop",
-    cut: inferCutName(productName),
+    cut,
     kg_per_unit: kg,
-    cost_per_kg: 0,
-    status: "To review",
-    notes: kg > 0
-      ? "Auto-created from sales import. Kg/unit was inferred from the product name. Add cost/kg to calculate COGS."
-      : "Auto-created from sales import. Add kg/unit and cost/kg to calculate COGS.",
+    cost_per_kg: costPerKg,
+    status: kg > 0 ? "OK" : "To review",
+    notes: price
+      ? `Auto-created from sales import. Cost/kg suggested from Monthly Prices (${price.month || "no month"}).`
+      : kg > 0
+        ? "Auto-created from sales import. Kg/unit was inferred from the product name. Monthly Prices will supply COGS when available."
+        : "Auto-created from sales import. Add kg/unit; Monthly Prices will supply COGS when available.",
   };
 }
 
@@ -122,12 +130,18 @@ function inferCutName(productName) {
     ["morcilla", "Morcilla"],
     ["molleja", "Molleja"],
     ["chinchulin", "Chinchulín"],
+    ["chinchu", "Chinchulín"],
     ["matambre", "Matambre"],
     ["bondiola", "Bondiola"],
     ["salchicha", "Salchicha parrillera"],
     ["milanesa", "Milanesa"],
     ["colita", "Colita de cuadril"],
     ["lomo", "Lomo"],
+    ["costillar", "Costillar"],
+    ["medialuna", "Vacío"],
+    ["hamburguesa", "Hamburguesa"],
+    ["provoleta", "Provoleta"],
+    ["peceto", "Peceto"],
   ];
 
   const found = cutRules.find(([needle]) => normalized.includes(needle));
@@ -165,7 +179,66 @@ export function findProductMapping(record, mappingsOrIndex = []) {
   return candidates[0]?.mapping || null;
 }
 
-export function calculateSalesMappingUpdates(record, mapping) {
+export function getPriceCostPerKg(price) {
+  if (!price) return 0;
+  const explicit = parseNumber(price.cost_per_kg ?? price.landed_cost_per_kg);
+  if (explicit && explicit > 0) return explicit;
+  const unit = parseNumber(price.cost_per_unit ?? price.landed_cost_per_unit ?? price.cost_dap_ams);
+  const kg = parseNumber(price.kg_per_unit ?? price.package_kg);
+  if (unit && unit > 0 && kg && kg > 0) return unit / kg;
+  return 0;
+}
+
+function scorePriceCandidate(price, productKey, cutKey, targetKg) {
+  const priceProductKey = normalizeProductName(price.product_name || price.price_product_name);
+  const priceCutKey = normalizeProductName(price.cut);
+  const priceKg = parseNumber(price.kg_per_unit ?? price.package_kg) ?? 0;
+  let score = 0;
+
+  if (priceProductKey && priceProductKey === productKey) score += 1000;
+  else if (priceProductKey && productKey && (productKey.includes(priceProductKey) || priceProductKey.includes(productKey))) score += 650;
+
+  if (priceCutKey && cutKey && priceCutKey === cutKey) score += 350;
+  else if (priceCutKey && cutKey && (cutKey.includes(priceCutKey) || priceCutKey.includes(cutKey))) score += 200;
+
+  if (targetKg > 0 && priceKg > 0) {
+    const diff = Math.abs(targetKg - priceKg);
+    score += Math.max(0, 120 - diff * 120);
+  }
+
+  return score;
+}
+
+function chooseBestMonthPrice(candidates, saleMonth) {
+  if (!candidates.length) return null;
+  const withMonth = candidates.filter(c => c.price.month);
+  if (!saleMonth || !withMonth.length) return candidates.sort((a, b) => (b.price.month || "").localeCompare(a.price.month || "") || b.score - a.score)[0]?.price || null;
+
+  const exact = candidates.filter(c => c.price.month === saleMonth);
+  if (exact.length) return exact.sort((a, b) => b.score - a.score)[0].price;
+
+  const previous = withMonth.filter(c => c.price.month <= saleMonth);
+  if (previous.length) return previous.sort((a, b) => (b.price.month || "").localeCompare(a.price.month || "") || b.score - a.score)[0].price;
+
+  return withMonth.sort((a, b) => (b.price.month || "").localeCompare(a.price.month || "") || b.score - a.score)[0].price;
+}
+
+export function findMonthlyPrice(record, priceRows = [], mapping = null) {
+  const productName = getSalesProductName(record);
+  const productKey = normalizeProductName(productName);
+  const cutKey = normalizeProductName(mapping?.cut || record?.cut || inferCutName(productName));
+  const targetKg = parseNumber(mapping?.kg_per_unit ?? record?.kg_per_unit) || parseKgFromProductName(productName) || 0;
+  const saleMonth = record?.accounting_month || record?.month || "";
+
+  const candidates = (priceRows || [])
+    .filter(p => p && (p.status === undefined || p.status === "OK" || p.status === "Active"))
+    .map(price => ({ price, score: scorePriceCandidate(price, productKey, cutKey, targetKg) }))
+    .filter(c => c.score >= 200 && getPriceCostPerKg(c.price) > 0);
+
+  return chooseBestMonthPrice(candidates, saleMonth);
+}
+
+export function calculateSalesMappingUpdates(record, mapping, priceRows = []) {
   if (!mapping) {
     return {
       mapping_status: "To review",
@@ -176,8 +249,12 @@ export function calculateSalesMappingUpdates(record, mapping) {
   const net = getSalesNetExVat(record);
   const qty = getSalesQuantity(record) || 0;
   const revenueType = mapping.revenue_type || "";
-  const kgPerUnit = parseNumber(mapping.kg_per_unit) ?? 0;
-  const costPerKg = parseNumber(mapping.cost_per_kg) ?? 0;
+  const price = findMonthlyPrice(record, priceRows, mapping);
+  const priceCostPerKg = getPriceCostPerKg(price);
+  const priceKg = parseNumber(price?.kg_per_unit ?? price?.package_kg) ?? 0;
+  const mappingKg = parseNumber(mapping.kg_per_unit) ?? 0;
+  const kgPerUnit = mappingKg || priceKg || 0;
+  const costPerKg = priceCostPerKg || parseNumber(mapping.cost_per_kg) || 0;
   const mappingStatus = mapping.status || "To review";
 
   if (mappingStatus === "Ignore") {
@@ -187,6 +264,9 @@ export function calculateSalesMappingUpdates(record, mapping) {
       cut: mapping.cut || "",
       kg_per_unit: kgPerUnit,
       cost_per_kg: costPerKg,
+      cost_source: price ? `Monthly Prices: ${price.product_name}` : "Product Mapping",
+      price_month: price?.month || "",
+      cost_per_unit: 0,
       meat_cogs: 0,
       product_revenue_ex_vat: 0,
       shipping_revenue_ex_vat: 0,
@@ -198,7 +278,8 @@ export function calculateSalesMappingUpdates(record, mapping) {
   }
 
   const needsCogs = ["Meat", "Box", "Event"].includes(revenueType);
-  const meatCogs = needsCogs ? qty * kgPerUnit * costPerKg : 0;
+  const costPerUnit = needsCogs ? kgPerUnit * costPerKg : 0;
+  const meatCogs = needsCogs ? qty * costPerUnit : 0;
   const cogsComplete = !needsCogs || (kgPerUnit > 0 && costPerKg > 0);
   const status = mappingStatus === "OK" && cogsComplete && revenueType ? "OK" : "To review";
 
@@ -208,6 +289,9 @@ export function calculateSalesMappingUpdates(record, mapping) {
     cut: mapping.cut || "",
     kg_per_unit: kgPerUnit,
     cost_per_kg: costPerKg,
+    cost_per_unit: costPerUnit,
+    cost_source: price ? `Monthly Prices: ${price.product_name}` : "Product Mapping",
+    price_month: price?.month || "",
     meat_cogs: meatCogs,
     product_revenue_ex_vat: ["Meat", "Box", "Custom Revenue"].includes(revenueType) ? net : 0,
     shipping_revenue_ex_vat: revenueType === "Shipping" ? net : 0,
@@ -218,7 +302,7 @@ export function calculateSalesMappingUpdates(record, mapping) {
   };
 }
 
-export function createMissingMappingPayloads(salesRecords = [], existingMappings = []) {
+export function createMissingMappingPayloads(salesRecords = [], existingMappings = [], priceRows = []) {
   const index = buildMappingIndex(existingMappings);
   const seen = new Set();
   const payloads = [];
@@ -234,7 +318,7 @@ export function createMissingMappingPayloads(salesRecords = [], existingMappings
 
     payloads.push({
       product_name: productName,
-      ...inferMappingDefaults(productName),
+      ...inferMappingDefaults(productName, priceRows),
     });
   }
 
