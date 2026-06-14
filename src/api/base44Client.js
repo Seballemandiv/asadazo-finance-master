@@ -13,7 +13,7 @@ const rawBase44 = createClient({
 });
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-let createQueue = Promise.resolve();
+let writeQueue = Promise.resolve();
 
 function isRateLimitError(err) {
   const msg = String(err?.message || err || '').toLowerCase();
@@ -22,39 +22,59 @@ function isRateLimitError(err) {
 
 async function runWithRetry(fn) {
   let lastError;
-  for (let attempt = 1; attempt <= 6; attempt++) {
+  for (let attempt = 1; attempt <= 7; attempt++) {
     try {
       return await fn();
     } catch (err) {
       lastError = err;
-      if (!isRateLimitError(err) || attempt === 6) break;
-      await sleep(700 * attempt * attempt);
+      if (!isRateLimitError(err) || attempt === 7) break;
+      // Progressive backoff: 0.9s, 3.6s, 8.1s, 14.4s, 22.5s, 32.4s
+      await sleep(900 * attempt * attempt);
     }
   }
   throw lastError;
 }
 
-function patchEntityCreates(client) {
-  if (!client?.entities || client.__asadazoCreateThrottlePatched) return client;
+function queueWrite(fn) {
+  const task = writeQueue.then(async () => {
+    const result = await runWithRetry(fn);
+    // Keep write operations spaced out. This prevents review/apply flows and imports
+    // from bursting hundreds of create/update/delete calls into Base44 at once.
+    await sleep(180);
+    return result;
+  });
+  writeQueue = task.catch(() => {});
+  return task;
+}
+
+function patchEntityWrites(client) {
+  if (!client?.entities || client.__asadazoWriteThrottlePatched) return client;
 
   for (const entity of Object.values(client.entities)) {
-    if (!entity?.create || entity.__asadazoCreatePatched) continue;
-    const originalCreate = entity.create.bind(entity);
-    entity.create = (payload) => {
-      const task = createQueue.then(async () => {
-        const result = await runWithRetry(() => originalCreate(payload));
-        await sleep(120);
-        return result;
-      });
-      createQueue = task.catch(() => {});
-      return task;
-    };
-    entity.__asadazoCreatePatched = true;
+    if (!entity || entity.__asadazoWritePatched) continue;
+
+    if (entity.create) {
+      const originalCreate = entity.create.bind(entity);
+      entity.create = (payload) => queueWrite(() => originalCreate(payload));
+    }
+
+    if (entity.update) {
+      const originalUpdate = entity.update.bind(entity);
+      entity.update = (id, payload) => queueWrite(() => originalUpdate(id, payload));
+    }
+
+    if (entity.delete) {
+      const originalDelete = entity.delete.bind(entity);
+      entity.delete = (id) => queueWrite(() => originalDelete(id));
+    }
+
+    entity.__asadazoWritePatched = true;
   }
 
-  client.__asadazoCreateThrottlePatched = true;
+  client.__asadazoWriteThrottlePatched = true;
   return client;
 }
 
-// Export a patched client so large imports do not burst-create hundreds of rows at once.
-export const base44 = patchEntityCreates(rawBase44);
+// Export a patched client so large imports, product mapping, bank classification,
+// reverts, and delete/hide actions do not trigger Base44 rate limits.
+export const base44 = patchEntityWrites(rawBase44);
