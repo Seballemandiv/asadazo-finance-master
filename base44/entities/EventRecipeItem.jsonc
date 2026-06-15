@@ -1,0 +1,16 @@
+{
+  "name": "EventRecipeItem",
+  "type": "object",
+  "properties": {
+    "event_id": { "type": "string" },
+    "event_name": { "type": "string" },
+    "menu_item": { "type": "string" },
+    "cut": { "type": "string" },
+    "provider": { "type": "string" },
+    "grams_per_unit": { "type": "number", "default": 0 },
+    "cost_per_kg": { "type": "number", "default": 0 },
+    "notes": { "type": "string" },
+    "is_active": { "type": "boolean", "default": true }
+  },
+  "required": ["event_id", "menu_item", "cut"]
+}
