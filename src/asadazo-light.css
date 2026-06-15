@@ -24,6 +24,45 @@ body,
 #root,
 main,
 .app-screen {
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background: #FFF7EA !important;
+  color: #171111 !important;
+  color-scheme: light !important;
+}
+
+.bg-background,
+.bg-card,
+.bg-popover,
+[class*="bg-card"],
+[class*="bg-background"] {
+  background-color: #FFF7EA !important;
+  color: #171111 !important;
+}
+
+.rounded-lg.border,
+.rounded-2xl.border,
+.shadow-sm.border,
+.shadow-none.border {
+  background-color: #FFFCF5 !important;
+  border-color: #E8D1AD !important;
+}
+
+.bg-muted,
+.bg-slate-50,
+.hover\:bg-muted:hover,
+.hover\:bg-slate-100:hover {
+  background-color: #F8F1E6 !important;
+}
+
+.text-foreground,
+.text-card-foreground,
+.text-popover-foreground,
+.text-slate-700,
+.text-slate-800,
+.text-slate-900 {
+  color: #171111 !important;
+}
+
+.text-muted-foreground,
+.text-slate-600 {
+  color: #6B5A50 !important;
 }
