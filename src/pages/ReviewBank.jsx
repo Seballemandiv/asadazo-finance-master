@@ -8,7 +8,7 @@ import { Search, RefreshCw, Wand2, RotateCcw, Plus } from "lucide-react";
 import BankRowEditor from "@/components/review/BankRowEditor";
 import { applyBankRule, buildLearnedBankRules } from "@/lib/bankRulesEngine";
 
-const BATCH_LIMIT = 10;
+const BATCH_LIMIT = 100;
 const EVENT_TYPES = ["Event Cost"];
 
 function hasChanged(record, updates) {
