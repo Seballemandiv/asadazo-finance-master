@@ -104,11 +104,20 @@
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
+  * { @apply border-border outline-ring/50; }
+  body { @apply bg-background text-foreground font-body; }
+}
 
-  body {
-    @apply bg-background text-foreground font-body;
-  }
+/* App-wide responsive improvements. The app has many data tables, so phones should scroll tables horizontally instead of crushing columns. */
+@media (max-width: 767px) {
+  main .p-6 { padding: 1rem !important; }
+  main h1 { font-size: 1.35rem; line-height: 1.75rem; }
+  main table { min-width: 720px; }
+  main .grid-cols-2 { grid-template-columns: minmax(0, 1fr) !important; }
+  main button, main [role="combobox"] { min-height: 2.5rem; }
+}
+
+@media (max-width: 480px) {
+  main .max-w-7xl { max-width: 100%; }
+  main .rounded-lg { border-radius: 0.75rem; }
 }
