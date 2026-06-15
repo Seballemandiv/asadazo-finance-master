@@ -18,7 +18,7 @@ export function computeMetrics(sales, bank, transactions = []) {
 
   const productRevenue = activeSales.filter(r => r.revenue_type === "Meat" || r.revenue_type === "Box").reduce((s, r) => s + (Number(r.product_revenue_ex_vat) || rowNet(r)), 0);
   const shippingRevenue = activeSales.filter(r => r.revenue_type === "Shipping").reduce((s, r) => s + (Number(r.shipping_revenue_ex_vat) || rowNet(r)), 0);
-  const eventRevenueExcluded = sales.filter(r => r.mapping_status !== "Ignore" && isEventSale(r)).reduce((s, r) => s + rowNet(r), 0);
+  const eventRevenueExcluded = sales.filter(r => r.mapping_status !== "Ignore" && isEventSale(r)).reduce((s, r) => s + rowNet(r), 0) + okBank.reduce((s, r) => s + Number(r.event_profit || 0), 0);
   const otherRevenueBeforeRefunds = activeSales.filter(r => r.revenue_type === "Custom Revenue" || r.revenue_type === "Other Revenue").reduce((s, r) => s + (Number(r.other_revenue_ex_vat) || rowNet(r)), 0);
   const otherRevenue = otherRevenueBeforeRefunds - refunds;
   const unmappedRevenue = activeSales.filter(r => !r.revenue_type || r.mapping_status === "To review").reduce((s, r) => s + rowNet(r), 0);
@@ -95,10 +95,11 @@ export function computeMetrics(sales, bank, transactions = []) {
 
 export function computeEventMetrics(sales, bank, transactions = []) {
   const eventSales = sales.filter(r => r.mapping_status !== "Ignore" && isEventSale(r));
-  const eventBank = bank.filter(r => r.review_status === "OK" && (r.cost_type === "Event Cost" || r.channel === "Event"));
+  const eventBank = bank.filter(r => r.review_status === "OK" && (r.cost_type === "Event Cost" || r.cost_type === "Event Profit" || r.module === "Event" || r.channel === "Event"));
   const eventTransactions = transactions.filter(r => r.channel === "Event");
 
-  const revenue = eventSales.reduce((s, r) => s + rowNet(r), 0);
+  const bankEventProfit = eventBank.reduce((s, r) => s + Number(r.event_profit || 0), 0);
+  const revenue = eventSales.reduce((s, r) => s + rowNet(r), 0) + bankEventProfit;
   const cogs = eventSales.reduce((s, r) => s + Number(r.meat_cogs || 0), 0);
   const costs = eventBank.reduce((s, r) => s + Number(r.event_cost || 0), 0);
   const paymentFees = eventTransactions.reduce((s, r) => s + Math.abs(Number(r.transaction_fee || 0)), 0);
@@ -107,7 +108,7 @@ export function computeEventMetrics(sales, bank, transactions = []) {
   const eventProfit = revenue - totalCosts;
   const marginPct = revenue > 0 ? (eventProfit / revenue) * 100 : 0;
   const pendingSales = sales.filter(r => isEventSale(r) && r.mapping_status === "To review").length;
-  const pendingBank = bank.filter(r => (r.cost_type === "Event Cost" || r.channel === "Event") && r.review_status === "To review").length;
+  const pendingBank = bank.filter(r => (r.cost_type === "Event Cost" || r.cost_type === "Event Profit" || r.module === "Event" || r.channel === "Event") && r.review_status === "To review").length;
 
   return {
     revenue,
