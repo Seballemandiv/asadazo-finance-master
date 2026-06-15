@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Check, X, Trash2 } from "lucide-react";
 
-const COST_TYPES = ["Operating Expense", "Car rental NL", "Transport Spain to Amsterdam", "Expense Refund", "Shipping Cost", "Event Cost", "Meat Purchase", "Payment Employees", "Payment Processor Payout", "Refund", "Owner Payment", "Loan In / Payback", "Loan Out", "Transfer / Reconciliation", "Manual Review", "Ignore"];
+const COST_TYPES = ["Car rental NL", "Event Cost", "Expense Refund", "Ignore", "Loan In / Payback", "Loan Out", "Manual Review", "Meat Purchase", "Operating Expense", "Owner Payment", "Payment Employees", "Payment Processor Payout", "Refund", "Shipping Cost", "Transfer / Reconciliation", "Transport Spain to Amsterdam"];
 const MODULES = ["Online Shop", "Event", "Wholesale", "Other"];
-const CHANNELS = ["Product", "Shipping", "Marketing", "Car rental NL", "Transport Spain to Amsterdam", "Payment Employees", "Chef Table Experience", "Private Dining", "Stock / Supplier", "Tools & Equipment", "Admin", "Other"];
+const CHANNELS = ["Admin", "Car rental NL", "Chef Table Experience", "Marketing", "Other", "Payment Employees", "Private Dining", "Product", "Shipping", "Stock / Supplier", "Tools & Equipment", "Transport Spain to Amsterdam"];
 const STATUSES = ["OK", "To review", "Ignore"];
 const PNL_TYPES = ["Operating Expense", "Shipping Cost", "Event Cost", "Payment Employees", "Car rental NL", "Transport Spain to Amsterdam"];
 
@@ -27,13 +27,18 @@ function inferChannel(record) {
   return "Other";
 }
 
+function eventSort(a, b) {
+  return String(a.event_date || "9999-99-99").localeCompare(String(b.event_date || "9999-99-99"));
+}
+
 export default function BankRowEditor({ record, eventOptions = [], onSave, onCancel, onRemove }) {
   const amountOut = Number(record.amount_out || 0);
   const amountIn = Number(record.amount_in || 0);
+  const sortedEvents = useMemo(() => [...eventOptions].sort(eventSort), [eventOptions]);
   const [form, setForm] = useState({ cost_type: record.cost_type || "", module: inferModule(record), channel: inferChannel(record), event_id: record.event_id || "", review_status: record.review_status || "To review" });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const needsEvent = form.module === "Event" || form.cost_type === "Event Cost";
-  const selectedEvent = eventOptions.find(e => e.id === form.event_id);
+  const selectedEvent = sortedEvents.find(e => e.id === form.event_id);
 
   const handleSave = () => {
     const expenseRefund = form.cost_type === "Expense Refund" ? amountIn : 0;
@@ -62,13 +67,13 @@ export default function BankRowEditor({ record, eventOptions = [], onSave, onCan
 
   return (
     <tr className="border-t bg-blue-50/70">
-      <td colSpan={9} className="p-3">
+      <td colSpan={10} className="p-3">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 rounded-lg border bg-card p-3">
           <div className="md:col-span-3 text-xs text-muted-foreground"><div className="font-medium text-foreground truncate">{record.reference || record.payment_ref || "Bank row"}</div><div>{record.date} · out €{amountOut.toFixed(2)} · in €{amountIn.toFixed(2)}</div></div>
           <Field label="Cost / Cash Type" className="md:col-span-2"><Select value={form.cost_type} onValueChange={v => set("cost_type", v)}><SelectTrigger className="h-10 text-xs"><SelectValue placeholder="Type" /></SelectTrigger><SelectContent>{COST_TYPES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field>
           <Field label="Module" className="md:col-span-2"><Select value={form.module} onValueChange={v => set("module", v)}><SelectTrigger className="h-10 text-xs"><SelectValue placeholder="Module" /></SelectTrigger><SelectContent>{MODULES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field>
           <Field label="Channel" className="md:col-span-2"><Select value={form.channel} onValueChange={v => set("channel", v)}><SelectTrigger className="h-10 text-xs"><SelectValue placeholder="Channel" /></SelectTrigger><SelectContent>{CHANNELS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field>
-          <Field label="Event" className="md:col-span-2">{needsEvent ? <Select value={form.event_id || ""} onValueChange={v => set("event_id", v)}><SelectTrigger className="h-10 text-xs"><SelectValue placeholder="Select event" /></SelectTrigger><SelectContent>{eventOptions.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}</SelectContent></Select> : <div className="h-10 flex items-center text-xs text-muted-foreground">Only for Event module</div>}</Field>
+          <Field label="Event" className="md:col-span-2">{needsEvent ? <Select value={form.event_id || ""} onValueChange={v => set("event_id", v)}><SelectTrigger className="h-10 text-xs"><SelectValue placeholder="Select event" /></SelectTrigger><SelectContent>{sortedEvents.map(e => <SelectItem key={e.id} value={e.id}>{e.event_date ? `${e.event_date} · ${e.name}` : e.name}</SelectItem>)}</SelectContent></Select> : <div className="h-10 flex items-center text-xs text-muted-foreground">Only for Event module</div>}</Field>
           <Field label="Status" className="md:col-span-1"><Select value={form.review_status} onValueChange={v => set("review_status", v)}><SelectTrigger className="h-10 text-xs"><SelectValue /></SelectTrigger><SelectContent>{STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></Field>
           <div className="md:col-span-12 flex justify-end gap-2"><Button size="sm" onClick={handleSave}><Check className="w-4 h-4 mr-1" /> Save</Button>{onRemove && <Button size="sm" variant="destructive" onClick={() => onRemove(record.id)}><Trash2 className="w-4 h-4 mr-1" /> Remove</Button>}<Button size="sm" variant="outline" onClick={onCancel}><X className="w-4 h-4 mr-1" /> Cancel</Button></div>
         </div>
