@@ -23,6 +23,7 @@ function buildUpdate({ cost_type, module = "Other", channel = "Other", review_st
   const signedSpainTransport = cost_type === "Transport Spain to Amsterdam" ? amount - incomingAmount : 0;
   const genericRefund = isExpenseRefund ? incomingAmount : 0;
   const employeePayment = cost_type === "Payment Employees" || channel === "Payment Employees" ? amount : 0;
+  const eventProfit = cost_type === "Event Profit" || channel === "Event Profit" ? incomingAmount : 0;
   return {
     cost_type,
     module,
@@ -36,6 +37,7 @@ function buildUpdate({ cost_type, module = "Other", channel = "Other", review_st
     car_rental_nl: signedCarRental,
     transport_spain_to_amsterdam: signedSpainTransport,
     event_cost: cost_type === "Event Cost" ? amount : 0,
+    event_profit: eventProfit,
     employee_payment: employeePayment,
     meat_purchase: cost_type === "Meat Purchase" ? amount : 0,
     refund_amount: cost_type === "Refund" ? amount : 0,
@@ -58,9 +60,7 @@ export function buildLearnedBankRules(records = []) {
     const text = getBankSearchText(r);
     const firstWords = text.split(" ").filter(Boolean).slice(0, 3).join(" ");
     if (firstWords.length < 4) continue;
-    if (!seen.has(firstWords)) {
-      seen.set(firstWords, { keyword: firstWords, cost_type: r.cost_type, module: r.module || "Other", channel: r.channel || "Other", event_id: r.event_id || "", event_name: r.event_name || "", review_status: "OK" });
-    }
+    if (!seen.has(firstWords)) seen.set(firstWords, { keyword: firstWords, cost_type: r.cost_type, module: r.module || "Other", channel: r.channel || "Other", event_id: r.event_id || "", event_name: r.event_name || "", review_status: "OK" });
   }
   return Array.from(seen.values());
 }
@@ -73,10 +73,11 @@ export function classifyBankTransaction(record, learnedRules = []) {
   if (learned) return learned;
   if ((incoming > 0 || out > 0) && hasAny(text, ["diks", "autoverhuur", "mollie diks", "car rental", "rental car", "huurauto", "free2move", "greenwheels", "miles", "sixt", "hertz", "avis"])) return buildUpdate({ cost_type: "Car rental NL", module: "Other", channel: "Car rental NL", review_status: "OK", amount: out, incomingAmount: incoming });
   if (out > 0 && hasAny(text, ["ondara", "volanti", "cargo", "dlg", "warehouse", "almacen", "transport spain", "spain amsterdam", "malaga", "valencia", "pallet", "freight", "groupage", "logistics spain"])) return buildUpdate({ cost_type: "Transport Spain to Amsterdam", module: "Online Shop", channel: "Transport Spain to Amsterdam", review_status: "OK", amount: out });
-  if (incoming > 0 && hasAny(text, ["mct pid", "sumup", "stichting derdengelden", "payout", "uitbetaling", "mctx", "betaling ontvangen", "mollie"])) return buildUpdate({ cost_type: "Payment Processor Payout", module: "Online Shop", channel: "Other", review_status: "OK", amount: 0 });
-  if (incoming > 0 && hasAny(text, ["sebastian", "seba", "allemandi", "javier", "rizzo", "owner", "prive", "private", "loan", "lening", "payback", "terugbetaling"])) return buildUpdate({ cost_type: "Loan In / Payback", module: "Other", channel: "Other", review_status: "OK", amount: 0 });
-  if (incoming > 0) return buildUpdate({ cost_type: "Transfer / Reconciliation", module: "Other", channel: "Other", review_status: "To review", amount: 0 });
-  if (out <= 0) return buildUpdate({ cost_type: "Manual Review", module: "Other", channel: "Other", review_status: "To review", amount: 0 });
+  if (incoming > 0 && hasAny(text, ["mct pid", "sumup", "stichting derdengelden", "payout", "uitbetaling", "mctx", "betaling ontvangen", "mollie"])) return buildUpdate({ cost_type: "Payment Processor Payout", module: "Online Shop", channel: "Other", review_status: "OK", amount: 0, incomingAmount: incoming });
+  if (incoming > 0 && hasAny(text, ["event profit", "event revenue", "cash event", "event cash", "tlx cash", "festival cash", "chef table", "private dining", "private dinning"])) return buildUpdate({ cost_type: "Event Profit", module: "Event", channel: "Event Profit", review_status: "To review", amount: 0, incomingAmount: incoming });
+  if (incoming > 0 && hasAny(text, ["sebastian", "seba", "allemandi", "javier", "rizzo", "owner", "prive", "private", "loan", "lening", "payback", "terugbetaling"])) return buildUpdate({ cost_type: "Loan In / Payback", module: "Other", channel: "Other", review_status: "OK", amount: 0, incomingAmount: incoming });
+  if (incoming > 0) return buildUpdate({ cost_type: "Transfer / Reconciliation", module: "Other", channel: "Other", review_status: "To review", amount: 0, incomingAmount: incoming });
+  if (out <= 0) return buildUpdate({ cost_type: "Manual Review", module: "Other", channel: "Other", review_status: "To review", amount: 0, incomingAmount: incoming });
   if (hasAny(text, ["refund", "terugbetaling", "retour", "reversal", "restitutie", "chargeback", "dispute", "storno", "terugboeking"])) return buildUpdate({ cost_type: "Refund", module: "Online Shop", channel: "Other", review_status: "OK", amount: out });
   if (hasAny(text, ["la maxima", "lamaxima", "mercadrian", "adrian", "meat boys", "meatboys", "carnicer", "slager", "beef", "vlees", "meat", "proveedor", "supplier"])) return buildUpdate({ cost_type: "Meat Purchase", module: "Online Shop", channel: "Stock / Supplier", review_status: "OK", amount: out });
   if (hasAny(text, ["dhl", "postnl", "ups", "dpd", "fedex", "gls", "shipping", "delivery", "koerier", "courier"])) return buildUpdate({ cost_type: "Shipping Cost", module: "Online Shop", channel: "Shipping", review_status: "OK", amount: out });
