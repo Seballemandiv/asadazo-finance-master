@@ -1,0 +1,16 @@
+{
+  "name": "EventMenuForecast",
+  "type": "object",
+  "properties": {
+    "event_id": { "type": "string" },
+    "event_name": { "type": "string" },
+    "menu_item": { "type": "string" },
+    "selling_price_inc_vat": { "type": "number", "default": 0 },
+    "vat_rate": { "type": "number", "default": 9 },
+    "expected_units": { "type": "number", "default": 0 },
+    "actual_units": { "type": "number", "default": 0 },
+    "notes": { "type": "string" },
+    "is_active": { "type": "boolean", "default": true }
+  },
+  "required": ["event_id", "menu_item"]
+}
