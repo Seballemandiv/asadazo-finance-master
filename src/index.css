@@ -47,24 +47,24 @@
   }
 
   .dark {
-    --background: 0 75% 15%;
+    --background: 0 15% 8%;
     --foreground: 37 100% 96%;
-    --card: 0 70% 22%;
+    --card: 0 45% 16%;
     --card-foreground: 37 100% 96%;
-    --popover: 0 70% 22%;
+    --popover: 0 45% 16%;
     --popover-foreground: 37 100% 96%;
     --primary: 36 86% 69%;
     --primary-foreground: 0 75% 15%;
-    --secondary: 0 70% 22%;
+    --secondary: 0 34% 22%;
     --secondary-foreground: 37 100% 96%;
-    --muted: 0 45% 20%;
-    --muted-foreground: 37 60% 82%;
+    --muted: 0 28% 20%;
+    --muted-foreground: 37 55% 82%;
     --accent: 36 86% 69%;
     --accent-foreground: 0 75% 15%;
-    --destructive: 0 72% 45%;
+    --destructive: 0 72% 48%;
     --destructive-foreground: 37 100% 96%;
-    --border: 0 45% 28%;
-    --input: 0 45% 28%;
+    --border: 0 28% 30%;
+    --input: 0 28% 30%;
     --ring: 36 86% 69%;
     --chart-1: 36 86% 69%;
     --chart-2: 37 100% 96%;
@@ -75,9 +75,9 @@
     --sidebar-foreground: 37 100% 96%;
     --sidebar-primary: 36 86% 69%;
     --sidebar-primary-foreground: 0 75% 15%;
-    --sidebar-accent: 0 70% 22%;
+    --sidebar-accent: 0 34% 22%;
     --sidebar-accent-foreground: 37 100% 96%;
-    --sidebar-border: 0 45% 28%;
+    --sidebar-border: 0 28% 30%;
     --sidebar-ring: 36 86% 69%;
   }
 }
@@ -105,6 +105,12 @@
   main button, main [role="combobox"], main a { min-height: 44px; }
   main input, main textarea, main [role="combobox"] { font-size: 16px; }
 }
+
+.dark .text-slate-700, .dark .text-slate-800, .dark .text-slate-900 { color: hsl(var(--foreground)) !important; }
+.dark .bg-slate-50, .dark .bg-white { background-color: hsl(var(--card)) !important; }
+.dark .text-green-700 { color: #86efac !important; }
+.dark .text-yellow-700, .dark .text-amber-800 { color: #fde68a !important; }
+.dark .text-red-700, .dark .text-destructive { color: #fca5a5 !important; }
 
 @media (max-width: 480px) {
   main .max-w-7xl { max-width: 100%; }
