@@ -84,14 +84,13 @@
 
 @layer base {
   * { @apply border-border outline-ring/50; }
-  html, body, #root { height: 100%; width: 100%; overflow: hidden; overscroll-behavior: none; }
+  html, body, #root { min-height: 100%; width: 100%; }
   html { -webkit-text-size-adjust: 100%; }
-  body { @apply bg-background text-foreground font-body; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; user-select: none; }
-  input, textarea, select, [contenteditable="true"], .allow-select { -webkit-touch-callout: default; user-select: text; }
+  body { @apply bg-background text-foreground font-body; -webkit-tap-highlight-color: transparent; }
   button, a, [role="button"], [role="combobox"] { touch-action: manipulation; }
 }
 
-.native-scroll { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.native-scroll { -webkit-overflow-scrolling: touch; }
 .app-screen { animation: app-screen-enter 180ms ease-out both; }
 @keyframes app-screen-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .app-screen { animation: none; } * { scroll-behavior: auto !important; } }
