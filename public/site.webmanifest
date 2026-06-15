@@ -1,0 +1,8 @@
+{
+  "name": "Asadazo Business OS",
+  "short_name": "Asadazo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFF7EA",
+  "theme_color": "#611111"
+}
