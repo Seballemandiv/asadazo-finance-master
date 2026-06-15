@@ -1,0 +1,29 @@
+{
+  "name": "EventBudgetItem",
+  "type": "object",
+  "properties": {
+    "event_id": { "type": "string" },
+    "event_name": { "type": "string" },
+    "category": {
+      "type": "string",
+      "enum": ["Food", "Drinks", "Grill", "Serving", "Setup", "Staff", "Transport", "Marketing", "Cleaning", "Safety", "Venue", "Other"],
+      "default": "Other"
+    },
+    "item": { "type": "string" },
+    "unit_price_ex_vat": { "type": "number", "default": 0 },
+    "quantity": { "type": "number", "default": 1 },
+    "vat_rate": { "type": "number", "default": 21 },
+    "supplier": { "type": "string" },
+    "payment_method": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["To buy", "To confirm", "Ordered", "Paid", "Delivered", "Done", "Cancelled"],
+      "default": "To buy"
+    },
+    "responsible_person": { "type": "string" },
+    "due_date": { "type": "string" },
+    "notes": { "type": "string" },
+    "is_active": { "type": "boolean", "default": true }
+  },
+  "required": ["event_id", "item"]
+}
