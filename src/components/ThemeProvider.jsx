@@ -1,33 +1,29 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-const ThemeContext = createContext({ theme: "system", resolvedTheme: "light", setTheme: () => {} });
+const ThemeContext = createContext({ theme: "light", resolvedTheme: "light", setTheme: () => {} });
 
-function applyTheme(theme) {
+function applyTheme() {
   if (typeof window === "undefined") return "light";
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const resolved = theme === "system" ? (prefersDark ? "dark" : "light") : theme;
-  document.documentElement.classList.toggle("dark", resolved === "dark");
-  document.documentElement.style.colorScheme = resolved;
-  return resolved;
+  document.documentElement.classList.remove("dark");
+  document.documentElement.style.colorScheme = "light";
+  localStorage.setItem("asadazo-theme", "light");
+  return "light";
 }
 
 export function ThemeProvider({ children }) {
-  const [theme, setThemeState] = useState(() => localStorage.getItem("asadazo-theme") || "system");
+  const [theme, setThemeState] = useState("light");
   const [resolvedTheme, setResolvedTheme] = useState("light");
 
-  const setTheme = (nextTheme) => {
-    const value = ["light", "dark", "system"].includes(nextTheme) ? nextTheme : "system";
-    localStorage.setItem("asadazo-theme", value);
-    setThemeState(value);
+  const setTheme = () => {
+    localStorage.setItem("asadazo-theme", "light");
+    setThemeState("light");
+    setResolvedTheme(applyTheme());
   };
 
   useEffect(() => {
-    const sync = () => setResolvedTheme(applyTheme(theme));
-    sync();
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    media.addEventListener?.("change", sync);
-    return () => media.removeEventListener?.("change", sync);
-  }, [theme]);
+    setThemeState("light");
+    setResolvedTheme(applyTheme());
+  }, []);
 
   const value = useMemo(() => ({ theme, resolvedTheme, setTheme }), [theme, resolvedTheme]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
