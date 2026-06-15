@@ -8,7 +8,7 @@ import { Search, RefreshCw, Wand2 } from "lucide-react";
 import SalesRowEditor from "@/components/review/SalesRowEditor";
 import { buildMappingIndex, calculateSalesMappingUpdates, findProductMapping, getSalesNetExVat } from "@/lib/cogsEngine";
 
-const BATCH_LIMIT = 10;
+const BATCH_LIMIT = 100;
 
 function hasChanged(record, updates) {
   return Object.entries(updates).some(([k, v]) => String(record[k] ?? "") !== String(v ?? ""));
@@ -74,7 +74,7 @@ export default function ReviewSales() {
 
   const handleApplyProductMappings = async () => {
     if (selectedMonth === "all") {
-      setApplyMessage({ type: "error", text: "Select one month first. To avoid Base44 rate limits, mappings are applied month by month." });
+      setApplyMessage({ type: "error", text: "Select one month first. Mappings are applied month by month so COGS uses the correct price month." });
       return;
     }
 
@@ -116,7 +116,7 @@ export default function ReviewSales() {
       });
     } catch (err) {
       console.error("Failed to apply product mappings", err);
-      setApplyMessage({ type: "error", text: `${err?.message || "Failed to apply product mappings."} Try again in 30 seconds; only ${BATCH_LIMIT} rows are processed per click now.` });
+      setApplyMessage({ type: "error", text: `${err?.message || "Failed to apply product mappings."} Try again in 30 seconds; up to ${BATCH_LIMIT} rows are processed per click now.` });
     } finally {
       setApplying(false);
     }
@@ -156,7 +156,7 @@ export default function ReviewSales() {
         <div className="rounded-lg border p-3"><div className="text-muted-foreground text-xs">Meat COGS</div><div className="font-semibold">€{summary.cogs.toFixed(2)}</div></div>
       </div>
 
-      {selectedMonth === "all" && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Select one month before applying mappings. This prevents rate limits and keeps COGS linked to the correct month.</div>}
+      {selectedMonth === "all" && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Select one month before applying mappings. This keeps COGS linked to the correct month.</div>}
 
       {applyMessage && <div className={`rounded-lg border px-4 py-3 text-sm ${applyMessage.type === "success" ? "bg-green-50 border-green-200 text-green-800" : applyMessage.type === "error" ? "bg-red-50 border-red-200 text-red-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>{applyMessage.text}</div>}
 
@@ -166,7 +166,7 @@ export default function ReviewSales() {
         <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input className="pl-9 w-56" placeholder="Search product..." value={search} onChange={e => setSearch(e.target.value)} /></div>
       </div>
 
-      <Card><CardContent className="overflow-x-auto p-0">{loading ? <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" /></div> : <table className="w-full text-sm"><thead className="bg-muted text-muted-foreground text-xs"><tr>{["Date", "Product", "Qty", "Net (ex VAT)", "Channel", "Rev Type", "Cut", "kg/unit", "Cost/kg", "Price Month", "COGS", "Status", ""].map(h => <th key={h} className="px-3 py-2 text-left font-medium whitespace-nowrap">{h}</th>)}</tr></thead><tbody>{filtered.map(r => editingId === r.id ? <SalesRowEditor key={r.id} record={r} mappings={mappings} cutCosts={cutCosts} onSave={updates => handleUpdate(r.id, updates)} onCancel={() => setEditingId(null)} /> : <tr key={r.id} className="border-t hover:bg-muted/20 cursor-pointer" onClick={() => setEditingId(r.id)} title={r.cost_source || ""}><td className="px-3 py-2 whitespace-nowrap text-xs">{(r.transaction_date || r.date)?.slice(0, 10)}</td><td className="px-3 py-2 max-w-[200px] truncate">{r.product_name || r.product}</td><td className="px-3 py-2">{r.quantity ?? r.qty}</td><td className="px-3 py-2">€{getSalesNetExVat(r).toFixed(2)}</td><td className="px-3 py-2">{r.channel}</td><td className="px-3 py-2">{r.revenue_type}</td><td className="px-3 py-2">{r.cut}</td><td className="px-3 py-2">{r.kg_per_unit}</td><td className="px-3 py-2">€{Number(r.cost_per_kg || 0).toFixed(2)}</td><td className="px-3 py-2">{r.price_month}</td><td className="px-3 py-2">€{(r.meat_cogs || 0).toFixed(2)}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge[r.mapping_status] || ""}`}>{r.mapping_status}</span></td><td className="px-3 py-2 text-xs text-muted-foreground">Edit</td></tr>)}</tbody></table>}</CardContent></Card>
+      <Card><CardContent className="overflow-x-auto p-0">{loading ? <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" /></div> : <table className="w-full text-sm"><thead className="bg-muted text-muted-foreground text-xs"><tr>{["Date", "Product", "Qty", "Net (ex VAT)", "Channel", "Rev Type", "Cut", "kg/unit", "Cost/kg", "Price Month", "COGS", "Status", ""].map(h => <th key={h} className="px-3 py-2 text-left font-medium whitespace-nowrap">{h}</th>)}</tr></thead><tbody>{filtered.map(r => editingId === r.id ? <SalesRowEditor key={r.id} record={r} mappings={mappings} cutCosts={cutCosts} onSave={updates => handleUpdate(r.id, updates)} onCancel={() => setEditingId(null)} /> : <tr key={r.id} className="border-t hover:bg-muted/20 cursor-pointer" onClick={() => setEditingId(r.id)} title={r.cost_source || ""><td className="px-3 py-2 whitespace-nowrap text-xs">{(r.transaction_date || r.date)?.slice(0, 10)}</td><td className="px-3 py-2 max-w-[200px] truncate">{r.product_name || r.product}</td><td className="px-3 py-2">{r.quantity ?? r.qty}</td><td className="px-3 py-2">€{getSalesNetExVat(r).toFixed(2)}</td><td className="px-3 py-2">{r.channel}</td><td className="px-3 py-2">{r.revenue_type}</td><td className="px-3 py-2">{r.cut}</td><td className="px-3 py-2">{r.kg_per_unit}</td><td className="px-3 py-2">€{Number(r.cost_per_kg || 0).toFixed(2)}</td><td className="px-3 py-2">{r.price_month}</td><td className="px-3 py-2">€{(r.meat_cogs || 0).toFixed(2)}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge[r.mapping_status] || ""}`}>{r.mapping_status}</span></td><td className="px-3 py-2 text-xs text-muted-foreground">Edit</td></tr>)}</tbody></table>}</CardContent></Card>
     </div>
   );
 }
