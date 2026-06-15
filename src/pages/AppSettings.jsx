@@ -1,12 +1,15 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/lib/AuthContext";
+import { useTheme } from "@/components/ThemeProvider";
 import { LogOut, Mail, ExternalLink } from "lucide-react";
 
 const SUPPORT_EMAIL = "sebastianallemandiv@gmail.com";
 
 export default function AppSettings() {
   const { user, logout } = useAuth();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const subject = encodeURIComponent("Asadazo Business OS support request");
   const body = encodeURIComponent(`Hello Asadazo team,\n\nPlease help me with my account.\n\nAccount email: ${user?.email || ""}\n\nThank you.`);
 
@@ -16,6 +19,22 @@ export default function AppSettings() {
         <h1 className="text-2xl font-bold text-foreground">App Settings</h1>
         <p className="text-muted-foreground text-sm mt-1">Support and account preferences.</p>
       </div>
+
+      <section className="rounded-lg border bg-card p-4 space-y-3">
+        <h2 className="font-semibold">Appearance</h2>
+        <p className="text-sm text-muted-foreground">Choose how the app looks on your phone and browser. Light is the default and matches the website look.</p>
+        <div className="max-w-xs">
+          <Select value={theme} onValueChange={setTheme}>
+            <SelectTrigger><SelectValue placeholder="Choose appearance" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="light">Light</SelectItem>
+              <SelectItem value="dark">Dark</SelectItem>
+              <SelectItem value="system">Use device setting</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-2">Current display: {resolvedTheme}</p>
+        </div>
+      </section>
 
       <section className="rounded-lg border bg-card p-4 space-y-3">
         <h2 className="font-semibold">Account</h2>
