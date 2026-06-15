@@ -1,0 +1,24 @@
+{
+  "name": "EventTask",
+  "type": "object",
+  "properties": {
+    "event_id": { "type": "string" },
+    "event_name": { "type": "string" },
+    "title": { "type": "string" },
+    "category": {
+      "type": "string",
+      "enum": ["To buy", "To bring", "To prepare", "Staff", "Logistics", "Admin", "Other"],
+      "default": "Other"
+    },
+    "responsible_person": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["Open", "Done", "Cancelled"],
+      "default": "Open"
+    },
+    "due_date": { "type": "string" },
+    "notes": { "type": "string" },
+    "is_active": { "type": "boolean", "default": true }
+  },
+  "required": ["title"]
+}
