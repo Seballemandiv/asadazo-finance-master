@@ -23,6 +23,8 @@ import ImportBank from '@/pages/ImportBank';
 import ReviewSales from '@/pages/ReviewSales';
 import ReviewBank from '@/pages/ReviewBank';
 import Mappings from '@/pages/Mappings';
+import AppSettings from '@/pages/AppSettings';
+import HelloPage from '@/pages/HelloPage';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -50,6 +52,7 @@ const AuthenticatedApp = () => {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/account-support" element={<HelloPage />} />
 
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<AppLayout />}>
@@ -63,6 +66,7 @@ const AuthenticatedApp = () => {
           <Route path="/review-sales" element={<ReviewSales />} />
           <Route path="/review-bank" element={<ReviewBank />} />
           <Route path="/mappings" element={<Mappings />} />
+          <Route path="/settings" element={<AppSettings />} />
         </Route>
       </Route>
 
