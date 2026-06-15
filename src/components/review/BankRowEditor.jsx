@@ -3,15 +3,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Check, X, Trash2 } from "lucide-react";
 
-const COST_TYPES = ["Car rental NL", "Event Cost", "Expense Refund", "Ignore", "Loan In / Payback", "Loan Out", "Manual Review", "Meat Purchase", "Operating Expense", "Owner Payment", "Payment Employees", "Payment Processor Payout", "Refund", "Shipping Cost", "Transfer / Reconciliation", "Transport Spain to Amsterdam"];
+const COST_TYPES = ["Car rental NL", "Event Cost", "Event Profit", "Expense Refund", "Ignore", "Loan In / Payback", "Loan Out", "Manual Review", "Meat Purchase", "Operating Expense", "Owner Payment", "Payment Employees", "Payment Processor Payout", "Refund", "Shipping Cost", "Transfer / Reconciliation", "Transport Spain to Amsterdam"];
 const MODULES = ["Online Shop", "Event", "Wholesale", "Other"];
-const CHANNELS = ["Admin", "Car rental NL", "Chef Table Experience", "Marketing", "Other", "Payment Employees", "Private Dining", "Product", "Shipping", "Stock / Supplier", "Tools & Equipment", "Transport Spain to Amsterdam"];
+const CHANNELS = ["Admin", "Car rental NL", "Chef Table Experience", "Event Profit", "Marketing", "Other", "Payment Employees", "Private Dining", "Product", "Shipping", "Stock / Supplier", "Tools & Equipment", "Transport Spain to Amsterdam"];
 const STATUSES = ["OK", "To review", "Ignore"];
 const PNL_TYPES = ["Operating Expense", "Shipping Cost", "Event Cost", "Payment Employees", "Car rental NL", "Transport Spain to Amsterdam"];
 
 function inferModule(record) {
   if (record.module) return record.module;
-  if (record.channel === "Event" || record.cost_type === "Event Cost" || record.event_id) return "Event";
+  if (["Event", "Event Profit"].includes(record.channel) || ["Event Cost", "Event Profit"].includes(record.cost_type) || record.event_id) return "Event";
   if (record.channel === "Wholesale") return "Wholesale";
   if (record.channel === "Online Shop") return "Online Shop";
   return "Other";
@@ -19,6 +19,7 @@ function inferModule(record) {
 
 function inferChannel(record) {
   if (record.channel && !["Online Shop", "Event", "Wholesale"].includes(record.channel)) return record.channel;
+  if (record.cost_type === "Event Profit") return "Event Profit";
   if (record.cost_type === "Payment Employees") return "Payment Employees";
   if (record.cost_type === "Shipping Cost") return "Shipping";
   if (record.cost_type === "Meat Purchase") return "Stock / Supplier";
@@ -37,12 +38,13 @@ export default function BankRowEditor({ record, eventOptions = [], onSave, onCan
   const sortedEvents = useMemo(() => [...eventOptions].sort(eventSort), [eventOptions]);
   const [form, setForm] = useState({ cost_type: record.cost_type || "", module: inferModule(record), channel: inferChannel(record), event_id: record.event_id || "", review_status: record.review_status || "To review" });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const needsEvent = form.module === "Event" || form.cost_type === "Event Cost";
+  const needsEvent = form.module === "Event" || form.cost_type === "Event Cost" || form.cost_type === "Event Profit";
   const selectedEvent = sortedEvents.find(e => e.id === form.event_id);
 
   const handleSave = () => {
     const expenseRefund = form.cost_type === "Expense Refund" ? amountIn : 0;
-    const eventCost = form.cost_type === "Event Cost" || form.module === "Event" ? amountOut : 0;
+    const eventCost = form.cost_type === "Event Cost" ? amountOut : 0;
+    const eventProfit = form.cost_type === "Event Profit" || form.channel === "Event Profit" ? amountIn : 0;
     const employeePayment = form.cost_type === "Payment Employees" || form.channel === "Payment Employees" ? amountOut : 0;
     const nextStatus = needsEvent && !selectedEvent ? "To review" : form.review_status;
     onSave({
@@ -58,6 +60,7 @@ export default function BankRowEditor({ record, eventOptions = [], onSave, onCan
       car_rental_nl: form.cost_type === "Car rental NL" ? amountOut - amountIn : 0,
       transport_spain_to_amsterdam: form.cost_type === "Transport Spain to Amsterdam" ? amountOut - amountIn : 0,
       event_cost: eventCost,
+      event_profit: eventProfit,
       employee_payment: employeePayment,
       meat_purchase: form.cost_type === "Meat Purchase" ? amountOut : 0,
       refund_amount: form.cost_type === "Refund" ? amountOut : 0,
