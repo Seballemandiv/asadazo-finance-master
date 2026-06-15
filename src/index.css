@@ -9,44 +9,33 @@
        Warm cream #FFF7EA | Charcoal #171111 */
     --background: 37 100% 96%;
     --foreground: 0 15% 8%;
-
     --card: 0 0% 100%;
     --card-foreground: 0 15% 8%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 0 15% 8%;
-
     --primary: 0 70% 22%;
     --primary-foreground: 37 100% 96%;
-
     --secondary: 36 86% 69%;
     --secondary-foreground: 0 75% 15%;
-
     --muted: 37 45% 91%;
     --muted-foreground: 0 14% 36%;
-
     --accent: 36 86% 69%;
     --accent-foreground: 0 75% 15%;
-
     --destructive: 0 72% 45%;
     --destructive-foreground: 37 100% 96%;
-
     --border: 35 45% 82%;
     --input: 35 45% 82%;
     --ring: 0 70% 22%;
-
     --chart-1: 0 70% 22%;
     --chart-2: 36 86% 69%;
     --chart-3: 0 75% 15%;
     --chart-4: 0 15% 8%;
     --chart-5: 37 100% 96%;
-
     --radius: 0.5rem;
     --font-heading: ui-sans-serif, system-ui, sans-serif;
     --font-body: ui-sans-serif, system-ui, sans-serif;
     --font-display: ui-sans-serif, system-ui, sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-
     --sidebar-background: 0 75% 15%;
     --sidebar-foreground: 37 100% 96%;
     --sidebar-primary: 36 86% 69%;
@@ -60,38 +49,28 @@
   .dark {
     --background: 0 75% 15%;
     --foreground: 37 100% 96%;
-
     --card: 0 70% 22%;
     --card-foreground: 37 100% 96%;
-
     --popover: 0 70% 22%;
     --popover-foreground: 37 100% 96%;
-
     --primary: 36 86% 69%;
     --primary-foreground: 0 75% 15%;
-
     --secondary: 0 70% 22%;
     --secondary-foreground: 37 100% 96%;
-
     --muted: 0 45% 20%;
     --muted-foreground: 37 60% 82%;
-
     --accent: 36 86% 69%;
     --accent-foreground: 0 75% 15%;
-
     --destructive: 0 72% 45%;
     --destructive-foreground: 37 100% 96%;
-
     --border: 0 45% 28%;
     --input: 0 45% 28%;
     --ring: 36 86% 69%;
-
     --chart-1: 36 86% 69%;
     --chart-2: 37 100% 96%;
     --chart-3: 0 70% 22%;
     --chart-4: 0 15% 8%;
     --chart-5: 0 75% 15%;
-
     --sidebar-background: 0 15% 8%;
     --sidebar-foreground: 37 100% 96%;
     --sidebar-primary: 36 86% 69%;
@@ -105,10 +84,18 @@
 
 @layer base {
   * { @apply border-border outline-ring/50; }
-  body { @apply bg-background text-foreground font-body; }
+  html, body, #root { height: 100%; width: 100%; overflow: hidden; overscroll-behavior: none; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { @apply bg-background text-foreground font-body; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; user-select: none; }
+  input, textarea, select, [contenteditable="true"], .allow-select { -webkit-touch-callout: default; user-select: text; }
+  button, a, [role="button"], [role="combobox"] { touch-action: manipulation; }
 }
 
-/* App-wide responsive improvements. The app has many data tables, so phones should scroll tables horizontally instead of crushing columns. */
+.native-scroll { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.app-screen { animation: app-screen-enter 180ms ease-out both; }
+@keyframes app-screen-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .app-screen { animation: none; } * { scroll-behavior: auto !important; } }
+
 @media (max-width: 767px) {
   main .p-6 { padding: 1rem !important; }
   main h1 { font-size: 1.35rem; line-height: 1.75rem; }
