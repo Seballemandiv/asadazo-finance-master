@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
+const THEME_KEY = "asadazo-theme-v2";
 const ThemeContext = createContext({ theme: "light", resolvedTheme: "light", setTheme: () => {} });
 
 function applyTheme(theme) {
@@ -12,12 +13,15 @@ function applyTheme(theme) {
 }
 
 export function ThemeProvider({ children }) {
-  const [theme, setThemeState] = useState(() => localStorage.getItem("asadazo-theme") || "light");
+  const [theme, setThemeState] = useState(() => {
+    if (typeof window === "undefined") return "light";
+    return localStorage.getItem(THEME_KEY) || "light";
+  });
   const [resolvedTheme, setResolvedTheme] = useState("light");
 
   const setTheme = (nextTheme) => {
     const value = ["light", "dark", "system"].includes(nextTheme) ? nextTheme : "light";
-    localStorage.setItem("asadazo-theme", value);
+    localStorage.setItem(THEME_KEY, value);
     setThemeState(value);
   };
 
