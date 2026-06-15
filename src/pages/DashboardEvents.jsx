@@ -29,9 +29,7 @@ function belongsToEvent(row, eventId) {
   if (eventId === "unassigned") return !row.event_id && !row.event_name;
   return row.event_id === eventId;
 }
-async function quietUpdate(entity, id, updates) {
-  try { await entity.update(id, updates); } catch (e) { console.warn("Could not update linked event name", e); }
-}
+async function quietUpdate(entity, id, updates) { try { await entity.update(id, updates); } catch (e) { console.warn("Could not update linked event label", e); } }
 
 export default function DashboardEvents() {
   const [events, setEvents] = useState([]);
@@ -96,20 +94,48 @@ export default function DashboardEvents() {
     setEvents(prev => prev.map(e => e.id === event.id ? { ...e, status } : e));
   };
 
-  const renameEvent = async (event) => {
-    const name = window.prompt("New event name", event.name || "");
-    if (!name || name.trim() === event.name) return;
-    const newName = name.trim();
-    await base44.entities.AsadazoEvent.update(event.id, { name: newName });
-    setEvents(prev => prev.map(e => e.id === event.id ? { ...e, name: newName } : e).sort(sortEvents));
-    setSalesRecords(prev => prev.map(r => r.event_id === event.id ? { ...r, event_name: newName } : r));
-    setBankTransactions(prev => prev.map(r => r.event_id === event.id ? { ...r, event_name: newName } : r));
-    setEventTasks(prev => prev.map(t => t.event_id === event.id ? { ...t, event_name: newName } : t));
+  const editEventDetails = async (event) => {
+    const name = window.prompt("Event name", event.name || "");
+    if (name === null) return;
+    const event_date = window.prompt("Event date (YYYY-MM-DD)", event.event_date || "");
+    if (event_date === null) return;
+    const end_date = window.prompt("End date (optional, YYYY-MM-DD)", event.end_date || "");
+    if (end_date === null) return;
+    const location = window.prompt("Location", event.location || "");
+    if (location === null) return;
+    const statusInput = window.prompt("Status: Planned, Confirmed, Completed, Cancelled", event.status || "Planned");
+    if (statusInput === null) return;
+    const expectedRaw = window.prompt("Expected guests / visitors", String(event.expected_guests || 0));
+    if (expectedRaw === null) return;
+    const targetRaw = window.prompt("Revenue target (€)", String(event.revenue_target || 0));
+    if (targetRaw === null) return;
+    const notes = window.prompt("Notes", event.notes || "");
+    if (notes === null) return;
 
-    // Best-effort sync of the display name on linked rows. Event calculations use event_id, so these are only labels.
-    salesRecords.filter(r => r.event_id === event.id).slice(0, 25).forEach(r => quietUpdate(base44.entities.SalesRecord, r.id, { event_name: newName }));
-    bankTransactions.filter(r => r.event_id === event.id).slice(0, 25).forEach(r => quietUpdate(base44.entities.BankTransaction, r.id, { event_name: newName }));
-    eventTasks.filter(t => t.event_id === event.id).slice(0, 25).forEach(t => quietUpdate(base44.entities.EventTask, t.id, { event_name: newName }));
+    const newName = name.trim() || event.name;
+    const status = EVENT_STATUSES.includes(statusInput) ? statusInput : (event.status || "Planned");
+    const updates = {
+      name: newName,
+      event_date: event_date.trim(),
+      end_date: end_date.trim(),
+      location: location.trim(),
+      status,
+      expected_guests: Number(String(expectedRaw).replace(",", ".")) || 0,
+      revenue_target: Number(String(targetRaw).replace(",", ".")) || 0,
+      notes: notes.trim(),
+    };
+
+    await base44.entities.AsadazoEvent.update(event.id, updates);
+    setEvents(prev => prev.map(e => e.id === event.id ? { ...e, ...updates } : e).sort(sortEvents));
+
+    if (newName !== event.name) {
+      setSalesRecords(prev => prev.map(r => r.event_id === event.id ? { ...r, event_name: newName } : r));
+      setBankTransactions(prev => prev.map(r => r.event_id === event.id ? { ...r, event_name: newName } : r));
+      setEventTasks(prev => prev.map(t => t.event_id === event.id ? { ...t, event_name: newName } : t));
+      salesRecords.filter(r => r.event_id === event.id).slice(0, 25).forEach(r => quietUpdate(base44.entities.SalesRecord, r.id, { event_name: newName }));
+      bankTransactions.filter(r => r.event_id === event.id).slice(0, 25).forEach(r => quietUpdate(base44.entities.BankTransaction, r.id, { event_name: newName }));
+      eventTasks.filter(t => t.event_id === event.id).slice(0, 25).forEach(t => quietUpdate(base44.entities.EventTask, t.id, { event_name: newName }));
+    }
   };
 
   const handleAddEvent = async () => {
@@ -142,13 +168,11 @@ export default function DashboardEvents() {
     const created = await base44.entities.EventTask.create({ event_id: selectedEvent.id, event_name: selectedEvent.name, title, category: TASK_CATEGORIES.includes(category) ? category : "Other", responsible_person, due_date, status: "Open", is_active: true });
     setEventTasks(prev => [...prev, created]);
   };
-
   const toggleTask = async (task) => {
     const status = task.status === "Done" ? "Open" : "Done";
     await base44.entities.EventTask.update(task.id, { status });
     setEventTasks(prev => prev.map(t => t.id === task.id ? { ...t, status } : t));
   };
-
   const deleteTask = async (task) => {
     await base44.entities.EventTask.update(task.id, { is_active: false, status: "Cancelled" });
     setEventTasks(prev => prev.filter(t => t.id !== task.id));
@@ -169,9 +193,9 @@ export default function DashboardEvents() {
 
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Event rows are linked to an event, not only to a month. Assign unassigned sales/costs in the tables below. Unassigned event rows: <strong>{unassignedCount}</strong>.</div>
 
-      <div className="border rounded-lg bg-card p-4"><h2 className="font-semibold mb-3">Event Calendar</h2><div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">{events.map(e => <div key={e.id} onClick={() => setSelectedEventId(e.id)} className={`text-left rounded-lg border p-3 hover:bg-muted/40 cursor-pointer ${selectedEventId === e.id ? "border-[#611111] bg-[#FFF7EA]" : ""}`}><div className="flex items-start justify-between gap-2"><div><div className="font-medium">{e.name}</div><div className="text-xs text-muted-foreground mt-1">{dateLabel(e.event_date)}{e.location ? ` · ${e.location}` : ""}</div></div><div className="flex gap-1"><Button size="sm" variant="outline" onClick={(ev) => { ev.stopPropagation(); renameEvent(e); }}><Pencil className="w-3 h-3 mr-1" /> Rename</Button><Button size="sm" variant="outline" onClick={(ev) => { ev.stopPropagation(); setSelectedEventId(e.id); }}>Open</Button></div></div><div className="mt-3" onClick={ev => ev.stopPropagation()}><Select value={e.status || "Planned"} onValueChange={status => updateEventStatus(e, status)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{EVENT_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div></div>)}{!events.length && <p className="text-sm text-muted-foreground">No events created yet. Add an event or seed the known 2026 events.</p>}</div></div>
+      <div className="border rounded-lg bg-card p-4"><h2 className="font-semibold mb-3">Event Calendar</h2><div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">{events.map(e => <div key={e.id} onClick={() => setSelectedEventId(e.id)} className={`text-left rounded-lg border p-3 hover:bg-muted/40 cursor-pointer ${selectedEventId === e.id ? "border-[#611111] bg-[#FFF7EA]" : ""}`}><div className="flex items-start justify-between gap-2"><div><div className="font-medium">{e.name}</div><div className="text-xs text-muted-foreground mt-1">{dateLabel(e.event_date)}{e.location ? ` · ${e.location}` : ""}</div>{e.expected_guests ? <div className="text-xs text-muted-foreground mt-1">Expected: {e.expected_guests}</div> : null}</div><div className="flex gap-1"><Button size="sm" variant="outline" onClick={(ev) => { ev.stopPropagation(); editEventDetails(e); }}><Pencil className="w-3 h-3 mr-1" /> Edit</Button><Button size="sm" variant="outline" onClick={(ev) => { ev.stopPropagation(); setSelectedEventId(e.id); }}>Open</Button></div></div><div className="mt-3" onClick={ev => ev.stopPropagation()}><Select value={e.status || "Planned"} onValueChange={status => updateEventStatus(e, status)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{EVENT_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div></div>)}{!events.length && <p className="text-sm text-muted-foreground">No events created yet. Add an event or seed the known 2026 events.</p>}</div></div>
 
-      {selectedEvent && <div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><div className="lg:col-span-1 border rounded-lg bg-card p-4"><div className="flex items-start justify-between gap-2"><h2 className="font-semibold">{selectedEvent.name}</h2><Button size="sm" variant="outline" onClick={() => renameEvent(selectedEvent)}><Pencil className="w-3 h-3 mr-1" /> Rename</Button></div><p className="text-sm text-muted-foreground mt-1">{dateLabel(selectedEvent.event_date)}{selectedEvent.end_date ? ` → ${dateLabel(selectedEvent.end_date)}` : ""}{selectedEvent.location ? ` · ${selectedEvent.location}` : ""}</p><div className="mt-3"><Select value={selectedEvent.status || "Planned"} onValueChange={status => updateEventStatus(selectedEvent, status)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{EVENT_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div><p className="text-xs text-muted-foreground mt-3">Open checklist items: <strong>{openTasks}</strong></p></div><div className="lg:col-span-2 border rounded-lg bg-card p-4"><div className="flex items-center justify-between gap-3 mb-3"><h2 className="font-semibold">Event Checklist</h2><Button size="sm" variant="outline" onClick={handleAddTask}><Plus className="w-4 h-4 mr-2" /> Add Item</Button></div><div className="space-y-2 max-h-72 overflow-auto">{selectedTasks.map(task => <div key={task.id} className="flex items-start gap-3 rounded-lg border p-3"><Checkbox checked={task.status === "Done"} onCheckedChange={() => toggleTask(task)} className="mt-1" /><div className="flex-1 min-w-0"><div className={`font-medium text-sm ${task.status === "Done" ? "line-through text-muted-foreground" : ""}`}>{task.title}</div><div className="text-xs text-muted-foreground mt-0.5">{task.category || "Other"}{task.responsible_person ? ` · RP: ${task.responsible_person}` : ""}{task.due_date ? ` · Due: ${dateLabel(task.due_date)}` : ""}</div></div><Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteTask(task)}><Trash2 className="w-3 h-3" /></Button></div>)}{!selectedTasks.length && <p className="text-sm text-muted-foreground text-center py-8">No checklist items yet. Add things to buy, bring, prepare, staff tasks, logistics, or admin tasks.</p>}</div></div></div>}
+      {selectedEvent && <div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><div className="lg:col-span-1 border rounded-lg bg-card p-4"><div className="flex items-start justify-between gap-2"><h2 className="font-semibold">{selectedEvent.name}</h2><Button size="sm" variant="outline" onClick={() => editEventDetails(selectedEvent)}><Pencil className="w-3 h-3 mr-1" /> Edit</Button></div><p className="text-sm text-muted-foreground mt-1">{dateLabel(selectedEvent.event_date)}{selectedEvent.end_date ? ` → ${dateLabel(selectedEvent.end_date)}` : ""}{selectedEvent.location ? ` · ${selectedEvent.location}` : ""}</p>{selectedEvent.expected_guests ? <p className="text-xs text-muted-foreground mt-2">Expected guests/visitors: <strong>{selectedEvent.expected_guests}</strong></p> : null}{selectedEvent.revenue_target ? <p className="text-xs text-muted-foreground mt-1">Revenue target: <strong>€{Number(selectedEvent.revenue_target || 0).toFixed(2)}</strong></p> : null}{selectedEvent.notes ? <p className="text-xs text-muted-foreground mt-2 whitespace-pre-wrap">{selectedEvent.notes}</p> : null}<div className="mt-3"><Select value={selectedEvent.status || "Planned"} onValueChange={status => updateEventStatus(selectedEvent, status)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{EVENT_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div><p className="text-xs text-muted-foreground mt-3">Open checklist items: <strong>{openTasks}</strong></p></div><div className="lg:col-span-2 border rounded-lg bg-card p-4"><div className="flex items-center justify-between gap-3 mb-3"><h2 className="font-semibold">Event Checklist</h2><Button size="sm" variant="outline" onClick={handleAddTask}><Plus className="w-4 h-4 mr-2" /> Add Item</Button></div><div className="space-y-2 max-h-72 overflow-auto">{selectedTasks.map(task => <div key={task.id} className="flex items-start gap-3 rounded-lg border p-3"><Checkbox checked={task.status === "Done"} onCheckedChange={() => toggleTask(task)} className="mt-1" /><div className="flex-1 min-w-0"><div className={`font-medium text-sm ${task.status === "Done" ? "line-through text-muted-foreground" : ""}`}>{task.title}</div><div className="text-xs text-muted-foreground mt-0.5">{task.category || "Other"}{task.responsible_person ? ` · RP: ${task.responsible_person}` : ""}{task.due_date ? ` · Due: ${dateLabel(task.due_date)}` : ""}</div></div><Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteTask(task)}><Trash2 className="w-3 h-3" /></Button></div>)}{!selectedTasks.length && <p className="text-sm text-muted-foreground text-center py-8">No checklist items yet. Add things to buy, bring, prepare, staff tasks, logistics, or admin tasks.</p>}</div></div></div>}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4"><MetricCard title="Event Revenue" value={`€${metrics.revenue.toFixed(2)}`} icon={TrendingUp} color="green" /><MetricCard title="Event Total Costs" value={`€${metrics.totalCosts.toFixed(2)}`} icon={TrendingDown} color="red" /><MetricCard title="Event Profit" value={`€${metrics.eventProfit.toFixed(2)}`} icon={Calendar} color={metrics.eventProfit >= 0 ? "green" : "red"} subtitle={`Margin: ${metrics.marginPct.toFixed(1)}%`} /><MetricCard title="Gross Profit after Event COGS" value={`€${metrics.grossProfit.toFixed(2)}`} icon={Package} color={metrics.grossProfit >= 0 ? "green" : "red"} /></div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4"><MetricCard title="Event Meat COGS" value={`€${metrics.cogs.toFixed(2)}`} icon={Package} color="orange" small /><MetricCard title="Event Bank Costs" value={`€${metrics.costs.toFixed(2)}`} icon={TrendingDown} color="slate" small /><MetricCard title="Payment Fees" value={`€${metrics.paymentFees.toFixed(2)}`} icon={TrendingDown} color="slate" small /><MetricCard title="Event Sales Rows" value={`${metrics.eventRows}`} icon={ShoppingBag} color="slate" small /></div>
