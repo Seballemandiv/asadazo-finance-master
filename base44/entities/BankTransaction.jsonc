@@ -27,6 +27,7 @@
         "Shipping Cost",
         "Event Cost",
         "Meat Purchase",
+        "Payment Employees",
         "Payment Processor Payout",
         "Refund",
         "Owner Payment",
@@ -37,7 +38,8 @@
         "Ignore"
       ]
     },
-    "channel": { "type": "string", "enum": ["Online Shop", "Event", "Wholesale", "Other"] },
+    "module": { "type": "string", "enum": ["Online Shop", "Event", "Wholesale", "Other"] },
+    "channel": { "type": "string", "enum": ["Product", "Shipping", "Marketing", "Car rental NL", "Transport Spain to Amsterdam", "Payment Employees", "Chef Table Experience", "Private Dining", "Stock / Supplier", "Tools & Equipment", "Admin", "Other"] },
     "event_id": { "type": "string" },
     "event_name": { "type": "string" },
     "review_status": { "type": "string", "enum": ["OK", "To review", "Ignore"], "default": "To review" },
@@ -47,6 +49,7 @@
     "car_rental_nl": { "type": "number", "default": 0 },
     "transport_spain_to_amsterdam": { "type": "number", "default": 0 },
     "event_cost": { "type": "number", "default": 0 },
+    "employee_payment": { "type": "number", "default": 0 },
     "meat_purchase": { "type": "number", "default": 0 },
     "refund_amount": { "type": "number", "default": 0 },
     "expense_refund_amount": { "type": "number", "default": 0 },
