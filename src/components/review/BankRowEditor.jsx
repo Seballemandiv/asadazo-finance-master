@@ -30,14 +30,7 @@ function inferChannel(record) {
 export default function BankRowEditor({ record, eventOptions = [], onSave, onCancel, onRemove }) {
   const amountOut = Number(record.amount_out || 0);
   const amountIn = Number(record.amount_in || 0);
-  const [form, setForm] = useState({
-    cost_type: record.cost_type || "",
-    module: inferModule(record),
-    channel: inferChannel(record),
-    event_id: record.event_id || "",
-    review_status: record.review_status || "To review",
-  });
-
+  const [form, setForm] = useState({ cost_type: record.cost_type || "", module: inferModule(record), channel: inferChannel(record), event_id: record.event_id || "", review_status: record.review_status || "To review" });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const needsEvent = form.module === "Event" || form.cost_type === "Event Cost";
   const selectedEvent = eventOptions.find(e => e.id === form.event_id);
@@ -69,7 +62,7 @@ export default function BankRowEditor({ record, eventOptions = [], onSave, onCan
 
   return (
     <tr className="border-t bg-blue-50/70">
-      <td colSpan={10} className="p-3">
+      <td colSpan={9} className="p-3">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 rounded-lg border bg-card p-3">
           <div className="md:col-span-3 text-xs text-muted-foreground"><div className="font-medium text-foreground truncate">{record.reference || record.payment_ref || "Bank row"}</div><div>{record.date} · out €{amountOut.toFixed(2)} · in €{amountIn.toFixed(2)}</div></div>
           <Field label="Cost / Cash Type" className="md:col-span-2"><Select value={form.cost_type} onValueChange={v => set("cost_type", v)}><SelectTrigger className="h-10 text-xs"><SelectValue placeholder="Type" /></SelectTrigger><SelectContent>{COST_TYPES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></Field>
