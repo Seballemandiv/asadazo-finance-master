@@ -1,0 +1,26 @@
+{
+  "name": "StockBatch",
+  "type": "object",
+  "properties": {
+    "batch_ref": { "type": "string" },
+    "supplier": { "type": "string", "enum": ["Adrian", "La Maxima", "Other"] },
+    "origin": { "type": "string" },
+    "supplier_invoice_no": { "type": "string" },
+    "invoice_date": { "type": "string" },
+    "arrival_date": { "type": "string" },
+    "accounting_month": { "type": "string" },
+    "total_kg_received": { "type": "number", "default": 0 },
+    "supplier_fca_total": { "type": "number", "default": 0 },
+    "transport_to_girona": { "type": "number", "default": 0 },
+    "transport_to_nl": { "type": "number", "default": 0 },
+    "vehicle_cost": { "type": "number", "default": 0 },
+    "handling_cost": { "type": "number", "default": 0 },
+    "other_landed_cost": { "type": "number", "default": 0 },
+    "total_landed_cost": { "type": "number", "default": 0 },
+    "landed_cost_per_kg": { "type": "number", "default": 0 },
+    "status": { "type": "string", "enum": ["Draft", "To review", "Ready", "Closed"], "default": "Draft" },
+    "notes": { "type": "string" },
+    "is_active": { "type": "boolean", "default": true }
+  },
+  "required": ["batch_ref"]
+}
