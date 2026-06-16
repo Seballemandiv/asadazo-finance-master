@@ -3,98 +3,91 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    /* Asadazo brand palette
-       Burgundy #611111 | Gold #F4BE6E | Deep wine #450A0A
-       Warm cream #FFF7EA | Charcoal #171111 */
-    --background: 37 100% 96%;
-    --foreground: 0 15% 8%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 15% 8%;
+  :root,
+  .dark {
+    /*
+      Asadazo Business OS theme
+      - Warm cream is the app background.
+      - Ivory/white is used for cards and surfaces.
+      - Gold is the primary interactive highlight.
+      - Burgundy is kept as a brand accent, not a page/card background.
+    */
+    --asadazo-burgundy: 0 70% 22%;
+    --asadazo-deep-wine: 0 75% 15%;
+    --asadazo-gold: 36 86% 69%;
+    --asadazo-cream: 37 100% 96%;
+    --asadazo-ivory: 42 100% 98%;
+    --asadazo-charcoal: 0 15% 8%;
+    --asadazo-warm-grey: 20 13% 37%;
+
+    --background: var(--asadazo-cream);
+    --foreground: var(--asadazo-charcoal);
+    --card: var(--asadazo-ivory);
+    --card-foreground: var(--asadazo-charcoal);
     --popover: 0 0% 100%;
-    --popover-foreground: 0 15% 8%;
-    --primary: 0 70% 22%;
-    --primary-foreground: 37 100% 96%;
-    --secondary: 36 86% 69%;
-    --secondary-foreground: 0 75% 15%;
+    --popover-foreground: var(--asadazo-charcoal);
+    --primary: var(--asadazo-gold);
+    --primary-foreground: var(--asadazo-deep-wine);
+    --secondary: 37 45% 91%;
+    --secondary-foreground: var(--asadazo-charcoal);
     --muted: 37 45% 91%;
-    --muted-foreground: 0 14% 36%;
-    --accent: 36 86% 69%;
-    --accent-foreground: 0 75% 15%;
+    --muted-foreground: var(--asadazo-warm-grey);
+    --accent: var(--asadazo-gold);
+    --accent-foreground: var(--asadazo-deep-wine);
     --destructive: 0 72% 45%;
-    --destructive-foreground: 37 100% 96%;
+    --destructive-foreground: var(--asadazo-cream);
     --border: 35 45% 82%;
     --input: 35 45% 82%;
-    --ring: 0 70% 22%;
-    --chart-1: 0 70% 22%;
-    --chart-2: 36 86% 69%;
-    --chart-3: 0 75% 15%;
-    --chart-4: 0 15% 8%;
-    --chart-5: 37 100% 96%;
+    --ring: var(--asadazo-burgundy);
+    --chart-1: var(--asadazo-burgundy);
+    --chart-2: var(--asadazo-gold);
+    --chart-3: var(--asadazo-deep-wine);
+    --chart-4: var(--asadazo-charcoal);
+    --chart-5: 35 35% 65%;
     --radius: 0.5rem;
     --font-heading: ui-sans-serif, system-ui, sans-serif;
     --font-body: ui-sans-serif, system-ui, sans-serif;
     --font-display: ui-sans-serif, system-ui, sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    --sidebar-background: 0 75% 15%;
-    --sidebar-foreground: 37 100% 96%;
-    --sidebar-primary: 36 86% 69%;
-    --sidebar-primary-foreground: 0 75% 15%;
-    --sidebar-accent: 0 70% 22%;
-    --sidebar-accent-foreground: 37 100% 96%;
-    --sidebar-border: 0 70% 22%;
-    --sidebar-ring: 36 86% 69%;
-  }
+    --sidebar-background: var(--asadazo-ivory);
+    --sidebar-foreground: var(--asadazo-charcoal);
+    --sidebar-primary: var(--asadazo-gold);
+    --sidebar-primary-foreground: var(--asadazo-deep-wine);
+    --sidebar-accent: 37 45% 91%;
+    --sidebar-accent-foreground: var(--asadazo-charcoal);
+    --sidebar-border: 35 45% 82%;
+    --sidebar-ring: var(--asadazo-burgundy);
 
-  .dark {
-    --background: 0 15% 8%;
-    --foreground: 37 100% 96%;
-    --card: 0 45% 16%;
-    --card-foreground: 37 100% 96%;
-    --popover: 0 45% 16%;
-    --popover-foreground: 37 100% 96%;
-    --primary: 36 86% 69%;
-    --primary-foreground: 0 75% 15%;
-    --secondary: 0 34% 22%;
-    --secondary-foreground: 37 100% 96%;
-    --muted: 0 28% 20%;
-    --muted-foreground: 37 55% 82%;
-    --accent: 36 86% 69%;
-    --accent-foreground: 0 75% 15%;
-    --destructive: 0 72% 48%;
-    --destructive-foreground: 37 100% 96%;
-    --border: 0 28% 30%;
-    --input: 0 28% 30%;
-    --ring: 36 86% 69%;
-    --chart-1: 36 86% 69%;
-    --chart-2: 37 100% 96%;
-    --chart-3: 0 70% 22%;
-    --chart-4: 0 15% 8%;
-    --chart-5: 0 75% 15%;
-    --sidebar-background: 0 15% 8%;
-    --sidebar-foreground: 37 100% 96%;
-    --sidebar-primary: 36 86% 69%;
-    --sidebar-primary-foreground: 0 75% 15%;
-    --sidebar-accent: 0 34% 22%;
-    --sidebar-accent-foreground: 37 100% 96%;
-    --sidebar-border: 0 28% 30%;
-    --sidebar-ring: 36 86% 69%;
+    color-scheme: light;
   }
 }
 
 @layer base {
   * { @apply border-border outline-ring/50; }
-  html, body, #root { min-height: 100%; width: 100%; overscroll-behavior-y: none; }
-  html { -webkit-text-size-adjust: 100%; }
+  html, body, #root {
+    min-height: 100%;
+    width: 100%;
+    overscroll-behavior-y: none;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+  html { -webkit-text-size-adjust: 100%; color-scheme: light; }
   body { @apply bg-background text-foreground font-body; -webkit-tap-highlight-color: transparent; }
   input, textarea, select, [contenteditable="true"], .allow-select { user-select: text; -webkit-user-select: text; }
   button, a, nav, [role="button"], [role="combobox"], svg { user-select: none; -webkit-user-select: none; }
   button, a, [role="button"], [role="combobox"] { touch-action: manipulation; min-height: 44px; min-width: 44px; }
 }
 
-.native-scroll, main, [data-scroll-container="true"], .overflow-auto, .overflow-y-auto, .overflow-x-auto { overscroll-behavior-y: none; -webkit-overflow-scrolling: touch; }
+.native-scroll, main, [data-scroll-container="true"], .overflow-auto, .overflow-y-auto, .overflow-x-auto {
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+}
+
 .app-screen { animation: app-screen-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-@keyframes app-screen-enter { from { opacity: 0; transform: translate3d(10px, 8px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+@keyframes app-screen-enter {
+  from { opacity: 0; transform: translate3d(10px, 8px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
 @media (prefers-reduced-motion: reduce) { .app-screen { animation: none; } * { scroll-behavior: auto !important; } }
 
 @media (max-width: 767px) {
@@ -105,12 +98,6 @@
   main button, main [role="combobox"], main a { min-height: 44px; }
   main input, main textarea, main [role="combobox"] { font-size: 16px; }
 }
-
-.dark .text-slate-700, .dark .text-slate-800, .dark .text-slate-900 { color: hsl(var(--foreground)) !important; }
-.dark .bg-slate-50, .dark .bg-white { background-color: hsl(var(--card)) !important; }
-.dark .text-green-700 { color: #86efac !important; }
-.dark .text-yellow-700, .dark .text-amber-800 { color: #fde68a !important; }
-.dark .text-red-700, .dark .text-destructive { color: #fca5a5 !important; }
 
 @media (max-width: 480px) {
   main .max-w-7xl { max-width: 100%; }
