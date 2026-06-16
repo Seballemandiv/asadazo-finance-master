@@ -1,0 +1,32 @@
+{
+  "name": "VehicleTrip",
+  "type": "object",
+  "properties": {
+    "trip_ref": { "type": "string" },
+    "provider": { "type": "string", "enum": ["Diks", "Free2Move", "Other"] },
+    "trip_date": { "type": "string" },
+    "accounting_month": { "type": "string" },
+    "purpose": { "type": "string", "enum": ["Direct customer delivery", "Inbound stock pickup", "Event transport", "Mixed inbound + deliveries", "Mixed event + deliveries", "Operating/admin", "Personal / Ignore"], "default": "Direct customer delivery" },
+    "amount_out_total": { "type": "number", "default": 0 },
+    "amount_in_total": { "type": "number", "default": 0 },
+    "net_cost": { "type": "number", "default": 0 },
+    "start_km": { "type": "number", "default": 0 },
+    "end_km": { "type": "number", "default": 0 },
+    "total_km": { "type": "number", "default": 0 },
+    "hours": { "type": "number", "default": 0 },
+    "stock_allocation_pct": { "type": "number", "default": 0 },
+    "delivery_allocation_pct": { "type": "number", "default": 0 },
+    "event_allocation_pct": { "type": "number", "default": 0 },
+    "stock_cost": { "type": "number", "default": 0 },
+    "delivery_cost": { "type": "number", "default": 0 },
+    "event_cost": { "type": "number", "default": 0 },
+    "linked_batch_ref": { "type": "string" },
+    "linked_event_id": { "type": "string" },
+    "linked_event_name": { "type": "string" },
+    "linked_order_refs": { "type": "string" },
+    "status": { "type": "string", "enum": ["Draft", "To review", "Ready", "Ignore"], "default": "Draft" },
+    "notes": { "type": "string" },
+    "is_active": { "type": "boolean", "default": true }
+  },
+  "required": ["trip_ref"]
+}
