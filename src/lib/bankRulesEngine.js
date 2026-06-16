@@ -21,6 +21,7 @@ function buildUpdate({ cost_type, module = "Other", channel = "Other", review_st
   const isExpenseRefund = cost_type === "Expense Refund";
   const signedCarRental = cost_type === "Car rental NL" ? amount - incomingAmount : 0;
   const signedSpainTransport = cost_type === "Transport Spain to Amsterdam" ? amount - incomingAmount : 0;
+  const landedCost = cost_type === "Landed Cost / Inventory Transport" ? amount : 0;
   const genericRefund = isExpenseRefund ? incomingAmount : 0;
   const employeePayment = cost_type === "Payment Employees" || channel === "Payment Employees" ? amount : 0;
   const eventProfit = cost_type === "Event Profit" || channel === "Event Profit" ? incomingAmount : 0;
@@ -36,6 +37,7 @@ function buildUpdate({ cost_type, module = "Other", channel = "Other", review_st
     operating_expenses: cost_type === "Operating Expense" || cost_type === "Payment Employees" ? amount : (isExpenseRefund ? -genericRefund : 0),
     car_rental_nl: signedCarRental,
     transport_spain_to_amsterdam: signedSpainTransport,
+    landed_cost: landedCost,
     event_cost: cost_type === "Event Cost" ? amount : 0,
     event_profit: eventProfit,
     employee_payment: employeePayment,
@@ -72,7 +74,7 @@ export function classifyBankTransaction(record, learnedRules = []) {
   const learned = learnedMatch(record, learnedRules);
   if (learned) return learned;
   if ((incoming > 0 || out > 0) && hasAny(text, ["diks", "autoverhuur", "mollie diks", "car rental", "rental car", "huurauto", "free2move", "greenwheels", "miles", "sixt", "hertz", "avis"])) return buildUpdate({ cost_type: "Car rental NL", module: "Other", channel: "Car rental NL", review_status: "OK", amount: out, incomingAmount: incoming });
-  if (out > 0 && hasAny(text, ["ondara", "volanti", "cargo", "dlg", "warehouse", "almacen", "transport spain", "spain amsterdam", "malaga", "valencia", "pallet", "freight", "groupage", "logistics spain"])) return buildUpdate({ cost_type: "Transport Spain to Amsterdam", module: "Online Shop", channel: "Transport Spain to Amsterdam", review_status: "OK", amount: out });
+  if (out > 0 && hasAny(text, ["ondara", "volanti", "cargo", "dlg", "warehouse", "almacen", "transport spain", "spain amsterdam", "malaga", "valencia", "pallet", "freight", "groupage", "logistics spain"])) return buildUpdate({ cost_type: "Landed Cost / Inventory Transport", module: "Online Shop", channel: "Landed Cost", review_status: "OK", amount: out });
   if (incoming > 0 && hasAny(text, ["mct pid", "sumup", "stichting derdengelden", "payout", "uitbetaling", "mctx", "betaling ontvangen", "mollie"])) return buildUpdate({ cost_type: "Payment Processor Payout", module: "Online Shop", channel: "Other", review_status: "OK", amount: 0, incomingAmount: incoming });
   if (incoming > 0 && hasAny(text, ["event profit", "event revenue", "cash event", "event cash", "tlx cash", "festival cash", "chef table", "private dining", "private dinning"])) return buildUpdate({ cost_type: "Event Profit", module: "Event", channel: "Event Profit", review_status: "To review", amount: 0, incomingAmount: incoming });
   if (incoming > 0 && hasAny(text, ["sebastian", "seba", "allemandi", "javier", "rizzo", "owner", "prive", "private", "loan", "lening", "payback", "terugbetaling"])) return buildUpdate({ cost_type: "Loan In / Payback", module: "Other", channel: "Other", review_status: "OK", amount: 0, incomingAmount: incoming });
