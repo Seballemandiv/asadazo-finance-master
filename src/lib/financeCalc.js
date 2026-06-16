@@ -39,6 +39,7 @@ export function computeMetrics(sales, bank, transactions = []) {
   const operatingExpenses = okBank.reduce((s, r) => s + Number(r.operating_expenses || 0), 0);
   const carRentalNL = okBank.reduce((s, r) => s + Number(r.car_rental_nl || 0), 0);
   const transportSpainToAmsterdam = okBank.reduce((s, r) => s + Number(r.transport_spain_to_amsterdam || 0), 0);
+  const landedCosts = okBank.reduce((s, r) => s + Number(r.landed_cost || 0), 0);
   const shippingCosts = okBank.reduce((s, r) => s + Number(r.shipping_cost || 0), 0);
   const eventCostsExcluded = okBank.reduce((s, r) => s + Number(r.event_cost || 0), 0);
   const meatPurchases = okBank.reduce((s, r) => s + Number(r.meat_purchase || 0), 0);
@@ -74,6 +75,7 @@ export function computeMetrics(sales, bank, transactions = []) {
     operatingExpenses,
     carRentalNL,
     transportSpainToAmsterdam,
+    landedCosts,
     shippingCosts,
     eventCosts: 0,
     eventCostsExcluded,
