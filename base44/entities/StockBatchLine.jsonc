@@ -1,0 +1,27 @@
+{
+  "name": "StockBatchLine",
+  "type": "object",
+  "properties": {
+    "batch_id": { "type": "string" },
+    "batch_ref": { "type": "string" },
+    "sku": { "type": "string" },
+    "public_name": { "type": "string" },
+    "supplier": { "type": "string", "enum": ["Adrian", "La Maxima", "Other"] },
+    "cut": { "type": "string" },
+    "kg_received": { "type": "number", "default": 0 },
+    "units_received": { "type": "number", "default": 0 },
+    "pack_size_label": { "type": "string" },
+    "fca_cost_per_kg": { "type": "number", "default": 0 },
+    "fca_total": { "type": "number", "default": 0 },
+    "allocated_transport": { "type": "number", "default": 0 },
+    "allocated_handling": { "type": "number", "default": 0 },
+    "allocated_vehicle": { "type": "number", "default": 0 },
+    "allocated_other": { "type": "number", "default": 0 },
+    "landed_total": { "type": "number", "default": 0 },
+    "landed_cost_per_kg": { "type": "number", "default": 0 },
+    "kg_remaining": { "type": "number", "default": 0 },
+    "status": { "type": "string", "enum": ["Draft", "To review", "Ready", "Closed"], "default": "Draft" },
+    "notes": { "type": "string" }
+  },
+  "required": ["batch_ref"]
+}
