@@ -22,14 +22,13 @@ export default function AppSettings() {
 
       <section className="rounded-lg border bg-card p-4 space-y-3">
         <h2 className="font-semibold">Appearance</h2>
-        <p className="text-sm text-muted-foreground">Choose how the app looks on your phone and browser. Light is the default and matches the website look.</p>
+        <p className="text-sm text-muted-foreground">The app uses the Asadazo website palette: warm cream background, ivory cards, burgundy accents and gold highlights.</p>
         <div className="max-w-xs">
           <Select value={theme} onValueChange={setTheme}>
             <SelectTrigger><SelectValue placeholder="Choose appearance" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="light">Light</SelectItem>
-              <SelectItem value="dark">Dark</SelectItem>
-              <SelectItem value="system">Use device setting</SelectItem>
+              <SelectItem value="system">Light, ignore device dark mode</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground mt-2">Current display: {resolvedTheme}</p>
