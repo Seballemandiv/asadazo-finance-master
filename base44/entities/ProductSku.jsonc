@@ -1,0 +1,21 @@
+{
+  "name": "ProductSku",
+  "type": "object",
+  "properties": {
+    "sku": { "type": "string", "description": "Internal SKU. Example: A-VACIO-1KG or LM-CHORIZO-108KG-3PACKS" },
+    "public_name": { "type": "string", "description": "Customer-facing product name" },
+    "supplier": { "type": "string", "enum": ["Adrian", "La Maxima", "Other"] },
+    "product_family": { "type": "string", "description": "Commercial family such as Vacio, Chorizo, Bife de chorizo" },
+    "cut": { "type": "string" },
+    "pack_size_label": { "type": "string", "description": "Human label, e.g. 1kg, 2x0.5kg, 3 packs" },
+    "kg_per_unit": { "type": "number", "default": 0 },
+    "units_per_pack": { "type": "number", "default": 1 },
+    "default_sale_price_inc_vat": { "type": "number", "default": 0 },
+    "current_fca_cost_per_kg": { "type": "number", "default": 0 },
+    "current_landed_cost_per_kg": { "type": "number", "default": 0 },
+    "vat_rate": { "type": "number", "default": 9 },
+    "status": { "type": "string", "enum": ["Active", "To review", "Inactive"], "default": "Active" },
+    "notes": { "type": "string" }
+  },
+  "required": ["sku", "public_name"]
+}
