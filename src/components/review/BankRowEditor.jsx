@@ -3,15 +3,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Check, X, Trash2 } from "lucide-react";
 
-const COST_TYPES = ["Car rental NL", "Event Cost", "Event Profit", "Expense Refund", "Ignore", "Loan In / Payback", "Loan Out", "Manual Review", "Meat Purchase", "Operating Expense", "Owner Payment", "Payment Employees", "Payment Processor Payout", "Refund", "Shipping Cost", "Transfer / Reconciliation", "Transport Spain to Amsterdam"];
+const COST_TYPES = ["Car rental NL", "Event Cost", "Event Profit", "Expense Refund", "Ignore", "Landed Cost / Inventory Transport", "Loan In / Payback", "Loan Out", "Manual Review", "Meat Purchase", "Operating Expense", "Owner Payment", "Payment Employees", "Payment Processor Payout", "Refund", "Shipping Cost", "Transfer / Reconciliation", "Transport Spain to Amsterdam"];
 const MODULES = ["Online Shop", "Event", "Wholesale", "Other"];
-const CHANNELS = ["Admin", "Car rental NL", "Chef Table Experience", "Event Profit", "Marketing", "Other", "Payment Employees", "Private Dining", "Product", "Shipping", "Stock / Supplier", "Tools & Equipment", "Transport Spain to Amsterdam"];
+const CHANNELS = ["Admin", "Car rental NL", "Chef Table Experience", "Event Profit", "Landed Cost", "Marketing", "Other", "Payment Employees", "Private Dining", "Product", "Shipping", "Stock / Supplier", "Tools & Equipment", "Transport Spain to Amsterdam"];
 const STATUSES = ["OK", "To review", "Ignore"];
 const PNL_TYPES = ["Operating Expense", "Shipping Cost", "Event Cost", "Payment Employees", "Car rental NL", "Transport Spain to Amsterdam"];
 
 function inferModule(record) {
   if (record.module) return record.module;
   if (["Event", "Event Profit"].includes(record.channel) || ["Event Cost", "Event Profit"].includes(record.cost_type) || record.event_id) return "Event";
+  if (record.cost_type === "Landed Cost / Inventory Transport" || record.channel === "Landed Cost") return "Online Shop";
   if (record.channel === "Wholesale") return "Wholesale";
   if (record.channel === "Online Shop") return "Online Shop";
   return "Other";
@@ -20,6 +21,7 @@ function inferModule(record) {
 function inferChannel(record) {
   if (record.channel && !["Online Shop", "Event", "Wholesale"].includes(record.channel)) return record.channel;
   if (record.cost_type === "Event Profit") return "Event Profit";
+  if (record.cost_type === "Landed Cost / Inventory Transport") return "Landed Cost";
   if (record.cost_type === "Payment Employees") return "Payment Employees";
   if (record.cost_type === "Shipping Cost") return "Shipping";
   if (record.cost_type === "Meat Purchase") return "Stock / Supplier";
@@ -45,6 +47,7 @@ export default function BankRowEditor({ record, eventOptions = [], onSave, onCan
     const expenseRefund = form.cost_type === "Expense Refund" ? amountIn : 0;
     const eventCost = form.cost_type === "Event Cost" ? amountOut : 0;
     const eventProfit = form.cost_type === "Event Profit" || form.channel === "Event Profit" ? amountIn : 0;
+    const landedCost = form.cost_type === "Landed Cost / Inventory Transport" || form.channel === "Landed Cost" ? amountOut : 0;
     const employeePayment = form.cost_type === "Payment Employees" || form.channel === "Payment Employees" ? amountOut : 0;
     const nextStatus = needsEvent && !selectedEvent ? "To review" : form.review_status;
     onSave({
@@ -59,6 +62,7 @@ export default function BankRowEditor({ record, eventOptions = [], onSave, onCan
       operating_expenses: form.cost_type === "Operating Expense" || form.cost_type === "Payment Employees" ? amountOut : (form.cost_type === "Expense Refund" ? -expenseRefund : 0),
       car_rental_nl: form.cost_type === "Car rental NL" ? amountOut - amountIn : 0,
       transport_spain_to_amsterdam: form.cost_type === "Transport Spain to Amsterdam" ? amountOut - amountIn : 0,
+      landed_cost: landedCost,
       event_cost: eventCost,
       event_profit: eventProfit,
       employee_payment: employeePayment,
